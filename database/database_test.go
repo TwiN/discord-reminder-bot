@@ -43,7 +43,7 @@ func TestCreateReminder(t *testing.T) {
 	if reminder.Note != "4" {
 		t.Fatal("Note should've been 4, got", reminder.Note)
 	}
-	if reminder.Time != targetTime {
+	if !reminder.Time.Equal(targetTime) {
 		t.Fatalf("Time should've been %d, got %d", targetTime.Unix(), reminder.Time.Unix())
 	}
 }
@@ -122,8 +122,8 @@ func TestUpdateReminder(t *testing.T) {
 	if reminder.Note != "updated-note" {
 		t.Fatal("Note should've been updated-note, got", reminder.Note)
 	}
-	if reminder.Time != now.Round(time.Minute).Add(time.Hour) {
-		t.Fatalf("Note should've been %s, got %s", now.Round(time.Minute).Add(time.Hour), reminder.Time)
+	if !reminder.Time.Equal(now.Add(time.Hour)) {
+		t.Fatalf("Time should've been %d, got %d", now.Add(time.Hour).Unix(), reminder.Time.Unix())
 	}
 }
 
@@ -173,7 +173,7 @@ func TestGetOverdueRemindersRetrievesTheOldestOnesFirst(t *testing.T) {
 	for _, overdueReminder := range overdueReminders {
 		t.Logf("%+v\n", overdueReminder)
 		if overdueReminder.Time.After(now.Add(-2 * time.Hour)) {
-			t.Fatal("GetOverdueReminders should've only returned the 5 most overdue reminders")
+			t.Fatal("GetOverdueReminders should've returned the 5 most overdue reminders")
 		}
 	}
 }
