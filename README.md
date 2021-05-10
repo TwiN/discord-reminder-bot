@@ -17,6 +17,23 @@ You may also use the following syntax:
 
 Note that `!RemindMe` can be replaced by directly pinging the bot (e.g. `@reminder-bot 2h30m meeting about cookies`)
 
+Once a reminder is created using one of the aforementioned methods, a direct message is sent to the user with several
+options to manage the newly created reminder. This is internally referred to as the notification message:
+
+![new reminder](.github/assets/reminder-new.png)
+
+Once a reminder is due, a direct message is sent to the user with a link to the message that triggered the creation
+of the reminder.
+
+Here is an example of a message with and without a note:
+
+![reminder](.github/assets/reminder.png)
+
+Furthermore, once a reminder has been deleted or has been processed, its notification message is automatically crossed
+to make the differentiation between active and inactive reminders:
+
+![deleted reminder](.github/assets/reminder-crossed.png)
+
 
 ## Usage
 | Environment variable | Description | Required | Default |
