@@ -13,13 +13,13 @@ func TestCreateReminder(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
-	now := time.Now().Round(time.Minute)
+	targetTime := time.Now().Round(time.Minute)
 	err := CreateReminder(&core.Reminder{
 		NotificationMessageID: "1",
 		UserID:                "2",
 		MessageLink:           "3",
 		Note:                  "4",
-		Time:                  now.Round(time.Minute),
+		Time:                  targetTime,
 	})
 	if err != nil {
 		t.Fatal("failed to create reminder:", err.Error())
@@ -43,10 +43,9 @@ func TestCreateReminder(t *testing.T) {
 	if reminder.Note != "4" {
 		t.Fatal("Note should've been 4, got", reminder.Note)
 	}
-	if reminder.Time != now.Round(time.Minute) {
-		t.Fatalf("Note should've been %s, got %s", now.Round(time.Minute), reminder.Time)
+	if reminder.Time != targetTime {
+		t.Fatalf("Note should've been %s, got %s", targetTime, reminder.Time.UTC())
 	}
-	os.Remove(t.TempDir() + "/test.db")
 }
 
 func TestDeleteReminderByNotificationMessageID(t *testing.T) {
