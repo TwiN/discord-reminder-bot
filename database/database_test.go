@@ -13,12 +13,13 @@ func TestCreateReminder(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
+	now := time.Now().Round(time.Minute)
 	err := CreateReminder(&core.Reminder{
 		NotificationMessageID: "1",
 		UserID:                "2",
 		MessageLink:           "3",
 		Note:                  "4",
-		Time:                  time.Now().Round(time.Minute),
+		Time:                  now.Round(time.Minute),
 	})
 	if err != nil {
 		t.Fatal("failed to create reminder:", err.Error())
@@ -42,8 +43,8 @@ func TestCreateReminder(t *testing.T) {
 	if reminder.Note != "4" {
 		t.Fatal("Note should've been 4, got", reminder.Note)
 	}
-	if reminder.Time != time.Now().Round(time.Minute) {
-		t.Fatalf("Note should've been %s, got %s", time.Now().Round(time.Minute), reminder.Time)
+	if reminder.Time != now.Round(time.Minute) {
+		t.Fatalf("Note should've been %s, got %s", now.Round(time.Minute), reminder.Time)
 	}
 	os.Remove(t.TempDir() + "/test.db")
 }
@@ -88,12 +89,13 @@ func TestUpdateReminder(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
+	now := time.Now().Round(time.Minute)
 	err := CreateReminder(&core.Reminder{
 		NotificationMessageID: "1",
 		UserID:                "2",
 		MessageLink:           "3",
 		Note:                  "4",
-		Time:                  time.Now().Round(time.Minute),
+		Time:                  now.Round(time.Minute),
 	})
 	if err != nil {
 		t.Fatal("failed to create reminder:", err.Error())
@@ -121,8 +123,8 @@ func TestUpdateReminder(t *testing.T) {
 	if reminder.Note != "updated-note" {
 		t.Fatal("Note should've been updated-note, got", reminder.Note)
 	}
-	if reminder.Time != time.Now().Round(time.Minute).Add(time.Hour) {
-		t.Fatalf("Note should've been %s, got %s", time.Now().Round(time.Minute).Add(time.Hour), reminder.Time)
+	if reminder.Time != now.Round(time.Minute).Add(time.Hour) {
+		t.Fatalf("Note should've been %s, got %s", now.Round(time.Minute).Add(time.Hour), reminder.Time)
 	}
 }
 
@@ -131,9 +133,10 @@ func TestGetOverdueReminders(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
-	_ = CreateReminder(&core.Reminder{NotificationMessageID: "1", Time: time.Now().Round(time.Minute).Add(time.Hour)})
-	_ = CreateReminder(&core.Reminder{NotificationMessageID: "2", Time: time.Now().Round(time.Minute).Add(-time.Hour)})
-	_ = CreateReminder(&core.Reminder{NotificationMessageID: "3", Time: time.Now().Round(time.Minute).Add(3 * time.Hour)})
+	now := time.Now().Round(time.Minute)
+	_ = CreateReminder(&core.Reminder{NotificationMessageID: "1", Time: now.Round(time.Minute).Add(time.Hour)})
+	_ = CreateReminder(&core.Reminder{NotificationMessageID: "2", Time: now.Round(time.Minute).Add(-time.Hour)})
+	_ = CreateReminder(&core.Reminder{NotificationMessageID: "3", Time: now.Round(time.Minute).Add(3 * time.Hour)})
 	overdueReminders, err := GetOverdueReminders()
 	if err != nil {
 		t.Fatal("failed to retrieve overdue reminders:", err.Error())
