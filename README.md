@@ -1,4 +1,5 @@
 # discord-reminder-bot
+![build](https://github.com/TwinProduction/discord-reminder-bot/workflows/build/badge.svg?branch=master)
 
 This is a simple Discord bot for managing reminders.
 
