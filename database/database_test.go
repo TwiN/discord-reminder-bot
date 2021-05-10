@@ -44,7 +44,7 @@ func TestCreateReminder(t *testing.T) {
 		t.Fatal("Note should've been 4, got", reminder.Note)
 	}
 	if reminder.Time != targetTime {
-		t.Fatalf("Note should've been %s, got %s", targetTime, reminder.Time.UTC())
+		t.Fatalf("Time should've been %d, got %d", targetTime.Unix(), reminder.Time.Unix())
 	}
 }
 
