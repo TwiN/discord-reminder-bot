@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 
+	"github.com/TwinProduction/discord-reminder-bot/config"
 	"github.com/TwinProduction/discord-reminder-bot/database"
 	"github.com/bwmarrin/discordgo"
 )
@@ -16,6 +18,16 @@ func worker(bot *discordgo.Session) {
 			// TODO: if errors 5 times in a row, panic
 			log.Println("[main][worker] Failed to retrieve expired reminders from database:", err.Error())
 			continue
+		}
+		if len(reminders) > 0 {
+			numberOfQueuedReminders, err := database.CountReminders()
+			if err == nil {
+				_ = bot.UpdateListeningStatus(fmt.Sprintf("%d queued reminders", numberOfQueuedReminders))
+			} else {
+				_ = bot.UpdateListeningStatus(config.Get().CommandPrefix + "RemindMe")
+			}
+		} else {
+			_ = bot.UpdateListeningStatus(config.Get().CommandPrefix + "RemindMe")
 		}
 		for _, reminder := range reminders {
 			directMessage, err := bot.UserChannelCreate(reminder.UserID)

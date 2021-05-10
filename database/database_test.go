@@ -123,6 +123,23 @@ func TestUpdateReminder(t *testing.T) {
 	}
 }
 
+func TestCountReminders(t *testing.T) {
+	Initialize("sqlite", t.TempDir()+"/test.db")
+	db := connect()
+	defer db.Close()
+	now := time.Now().Round(time.Minute)
+	_ = CreateReminder(&core.Reminder{NotificationMessageID: "1", Time: now.Add(time.Hour)})
+	_ = CreateReminder(&core.Reminder{NotificationMessageID: "2", Time: now.Add(-3 * time.Hour)})
+	_ = CreateReminder(&core.Reminder{NotificationMessageID: "3", Time: now.Add(-1 * time.Hour)})
+	numberOfReminders, err := CountReminders()
+	if err != nil {
+		t.Fatal("failed to retrieve the number of reminders:", err.Error())
+	}
+	if numberOfReminders != 3 {
+		t.Fatal("expected 3 reminders, got", numberOfReminders)
+	}
+}
+
 func TestGetOverdueReminders(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
@@ -165,7 +182,6 @@ func TestGetOverdueRemindersRetrievesTheOldestOnesFirst(t *testing.T) {
 		t.Fatal("5 reminders should've been overdue, got", len(overdueReminders))
 	}
 	for _, overdueReminder := range overdueReminders {
-		t.Logf("%+v\n", overdueReminder)
 		if overdueReminder.Time.After(now.Add(-2 * time.Hour)) {
 			t.Fatal("GetOverdueReminders should've returned the 5 most overdue reminders")
 		}

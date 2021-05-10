@@ -130,6 +130,22 @@ func GetOverdueReminders() ([]*core.Reminder, error) {
 	return reminders, nil
 }
 
+func CountReminders() (int, error) {
+	db := connect()
+	defer db.Close()
+	rows, err := db.Query("SELECT COUNT(1) FROM reminder")
+	if err != nil {
+		return 0, err
+	}
+	var numberOfReminders int
+	for rows.Next() {
+		_ = rows.Scan(&numberOfReminders)
+		break
+	}
+	_ = rows.Close()
+	return numberOfReminders, nil
+}
+
 func DeleteReminderByNotificationMessageID(messageID string) error {
 	start := time.Now()
 	db := connect()
