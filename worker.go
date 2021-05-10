@@ -11,7 +11,7 @@ import (
 func worker(bot *discordgo.Session) {
 	for {
 		time.Sleep(10 * time.Second)
-		reminders, err := database.GetExpiredReminders()
+		reminders, err := database.GetOverdueReminders()
 		if err != nil {
 			// TODO: if errors 5 times in a row, panic
 			log.Println("[main][worker] Failed to retrieve expired reminders from database:", err.Error())

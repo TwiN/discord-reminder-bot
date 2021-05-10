@@ -1,12 +1,27 @@
 # discord-reminder-bot
 
+This is a simple Discord bot for managing reminders.
+
+If you react to a message with `:timer:`, a message will be sent to you through direct message informing you
+that you will be reminded about the message you sent in 8 hours.
+
+You may also use the following syntax:
+```
+!RemindMe <DURATION> [NOTE]
+```
+**Where:**
+- `<DURATION>` must be use one of the following formats: `30m`, `6h30m`, `48h`
+- `[NOTE]` is an optional note to attach to the reminder with less than 240 characters
+
+Note that `!RemindMe` can be replaced by directly pinging the bot (e.g. `@reminder-bot 2h30m meeting about cookies`)
+
+
 ## Usage
 
 | Environment variable | Description | Required | Default |
 |:--- |:--- |:--- |:--- |
 | DISCORD_BOT_TOKEN | Discord bot token | yes | `""` |
 | COMMAND_PREFIX | Character prepending all bot commands. Must be exactly 1 character, or it will default to `!` | no | `!` |
-
 
 
 ## Getting started

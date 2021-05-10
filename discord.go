@@ -90,36 +90,6 @@ func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, qu
 	_ = bot.MessageReactionAdd(message.ChannelID, message.ID, "✅")
 }
 
-func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageID, note string, when time.Time) (*core.Reminder, error) {
-	if len(note) > MaximumNoteLength {
-		return nil, fmt.Errorf("note exceeded maximum length of %d", MaximumNoteLength)
-	}
-	reminder := &core.Reminder{
-		UserID:      userID,
-		MessageLink: fmt.Sprintf("https://discord.com/channels/%s/%s/%s", guildID, channelID, messageID),
-		Note:        note,
-		Time:        when,
-	}
-	directMessage, err := bot.UserChannelCreate(userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create DM with %s: %s", userID, err.Error())
-	}
-	botMessage, err := bot.ChannelMessageSend(directMessage.ID, reminder.GenerateNotificationMessageContent())
-	if err != nil {
-		return nil, fmt.Errorf("failed to send DM to %s: %s", userID, err.Error())
-	}
-	reminder.NotificationMessageID = botMessage.ID
-	err = database.CreateReminder(reminder)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create reminder in database: %s", err.Error())
-	}
-	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, RefreshDuration)
-	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, IncreaseDuration)
-	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, DecreaseDuration)
-	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, DeleteReminder)
-	return reminder, nil
-}
-
 func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReactionAdd) {
 	if reaction.UserID == bot.State.User.ID {
 		return
@@ -152,12 +122,12 @@ func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReacti
 			switch reaction.Emoji.Name {
 			case IncreaseDuration:
 				reminder.Time = reminder.Time.Add(time.Hour)
-				database.UpdateReminderInDatabase(reminder)
+				_ = database.UpdateReminder(reminder)
 				_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
 			case DecreaseDuration:
 				// XXX: no need to worry about checking if we're under 0, just let it be naturally handled
 				reminder.Time = reminder.Time.Add(-time.Hour)
-				database.UpdateReminderInDatabase(reminder)
+				_ = database.UpdateReminder(reminder)
 				_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
 			case RefreshDuration:
 				_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
@@ -169,4 +139,34 @@ func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReacti
 			}
 		}
 	}
+}
+
+func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageID, note string, when time.Time) (*core.Reminder, error) {
+	if len(note) > MaximumNoteLength {
+		return nil, fmt.Errorf("note exceeded maximum length of %d", MaximumNoteLength)
+	}
+	reminder := &core.Reminder{
+		UserID:      userID,
+		MessageLink: fmt.Sprintf("https://discord.com/channels/%s/%s/%s", guildID, channelID, messageID),
+		Note:        note,
+		Time:        when,
+	}
+	directMessage, err := bot.UserChannelCreate(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DM with %s: %s", userID, err.Error())
+	}
+	botMessage, err := bot.ChannelMessageSend(directMessage.ID, reminder.GenerateNotificationMessageContent())
+	if err != nil {
+		return nil, fmt.Errorf("failed to send DM to %s: %s", userID, err.Error())
+	}
+	reminder.NotificationMessageID = botMessage.ID
+	err = database.CreateReminder(reminder)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reminder in database: %s", err.Error())
+	}
+	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, RefreshDuration)
+	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, IncreaseDuration)
+	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, DecreaseDuration)
+	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, DeleteReminder)
+	return reminder, nil
 }

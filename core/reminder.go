@@ -5,11 +5,11 @@ import (
 )
 
 type Reminder struct {
-	NotificationMessageID string // MessageID of the message used to manage the reminder
-	UserID                string
-	MessageLink           string
-	Note                  string
-	Time                  time.Time
+	NotificationMessageID string    // ID of the message used to manage the reminder
+	UserID                string    // ID of the user to notify
+	MessageLink           string    // Link to the message that the user wants to be reminded about
+	Note                  string    // Note attached to the reminder
+	Time                  time.Time // Time at which the reminder is due for
 }
 
 func (r Reminder) GenerateNotificationMessageContent() string {

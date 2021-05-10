@@ -90,24 +90,30 @@ func GetReminderByNotificationMessageID(messageID string) (*core.Reminder, error
 	return reminder, nil
 }
 
-func UpdateReminderInDatabase(reminder *core.Reminder) error {
+// UpdateReminder updates a reminder
+// Note that the only fields supported for updates are Reminder.Note and Reminder.Time
+func UpdateReminder(reminder *core.Reminder) error {
 	start := time.Now()
 	db := connect()
 	defer db.Close()
 	_, err := db.Exec("UPDATE reminder SET reminder_time = $1, note = $2 WHERE notification_message_id = $3", reminder.Time, reminder.Note, reminder.NotificationMessageID)
 	if err != nil {
-		log.Printf("[database][UpdateReminderInDatabase] Failed to update reminder with NotificationMessageID=%s; duration=%dms", reminder.NotificationMessageID, time.Since(start).Milliseconds())
+		log.Printf("[database][UpdateReminder] Failed to update reminder with NotificationMessageID=%s; duration=%dms", reminder.NotificationMessageID, time.Since(start).Milliseconds())
 	} else {
-		log.Printf("[database][UpdateReminderInDatabase] Updated reminder with NotificationMessageID=%s in duration=%dms", reminder.NotificationMessageID, time.Since(start).Milliseconds())
+		log.Printf("[database][UpdateReminder] Updated reminder with NotificationMessageID=%s in duration=%dms", reminder.NotificationMessageID, time.Since(start).Milliseconds())
 	}
 	return err
 }
 
-func GetExpiredReminders() ([]*core.Reminder, error) {
+// GetOverdueReminders retrieves at most 5 reminders who have exceeded the time at which said reminder was due
+func GetOverdueReminders() ([]*core.Reminder, error) {
 	start := time.Now()
 	db := connect()
 	defer db.Close()
-	rows, err := db.Query("SELECT notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE reminder_time < $1 LIMIT 5", time.Now())
+	rows, err := db.Query(
+		"SELECT notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE reminder_time < $1 ORDER BY reminder_time LIMIT 5",
+		time.Now(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +125,7 @@ func GetExpiredReminders() ([]*core.Reminder, error) {
 	}
 	_ = rows.Close()
 	if len(reminders) > 0 {
-		log.Printf("[database][GetExpiredReminders] Got %d reminders in duration=%dms", len(reminders), time.Since(start).Milliseconds())
+		log.Printf("[database][GetOverdueReminders] Got %d reminders in duration=%dms", len(reminders), time.Since(start).Milliseconds())
 	}
 	return reminders, nil
 }
