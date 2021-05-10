@@ -162,6 +162,7 @@ func TestGetOverdueRemindersRetrievesTheOldestOnesFirst(t *testing.T) {
 		t.Fatal("5 reminders should've been overdue, got", len(overdueReminders))
 	}
 	for _, overdueReminder := range overdueReminders {
+		t.Logf("%+v\n", overdueReminder)
 		if overdueReminder.Time != now.Add(-3*time.Hour) && overdueReminder.Time != now.Add(-4*time.Hour) {
 			t.Fatal("GetOverdueReminders should've only returned the 5 most overdue reminders")
 		}
