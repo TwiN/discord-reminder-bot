@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/TwinProduction/discord-reminder-bot/config"
+	"github.com/TwinProduction/discord-reminder-bot/database"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -18,6 +19,7 @@ var (
 )
 
 func main() {
+	database.Initialize("sqlite", "data.db")
 	cfg = config.Get()
 	bot, err := Connect(cfg.DiscordToken)
 	if err != nil {
@@ -29,6 +31,7 @@ func main() {
 	bot.AddHandler(HandleReactionAdd)
 	_ = bot.UpdateListeningStatus(config.Get().CommandPrefix + "RemindMe")
 	log.Printf("Bot with id=%s has connected successfully", bot.State.User.ID)
+	go worker(bot)
 	waitUntilTermination()
 	log.Println("Terminating bot")
 }
