@@ -1,6 +1,7 @@
 package database
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 )
 
 func TestCreateReminder(t *testing.T) {
+	_ = os.Remove(t.TempDir() + "/test.db")
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
@@ -43,9 +45,11 @@ func TestCreateReminder(t *testing.T) {
 	if reminder.Time != time.Now().Round(time.Minute) {
 		t.Fatalf("Note should've been %s, got %s", time.Now().Round(time.Minute), reminder.Time)
 	}
+	os.Remove(t.TempDir() + "/test.db")
 }
 
 func TestDeleteReminderByNotificationMessageID(t *testing.T) {
+	_ = os.Remove(t.TempDir() + "/test.db")
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
@@ -80,6 +84,7 @@ func TestDeleteReminderByNotificationMessageID(t *testing.T) {
 }
 
 func TestUpdateReminder(t *testing.T) {
+	_ = os.Remove(t.TempDir() + "/test.db")
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
@@ -122,6 +127,7 @@ func TestUpdateReminder(t *testing.T) {
 }
 
 func TestGetOverdueReminders(t *testing.T) {
+	_ = os.Remove(t.TempDir() + "/test.db")
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
@@ -141,6 +147,7 @@ func TestGetOverdueReminders(t *testing.T) {
 }
 
 func TestGetOverdueRemindersRetrievesTheOldestOnesFirst(t *testing.T) {
+	_ = os.Remove(t.TempDir() + "/test.db")
 	Initialize("sqlite", t.TempDir()+"/test.db")
 	db := connect()
 	defer db.Close()
