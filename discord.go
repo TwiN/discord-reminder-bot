@@ -97,7 +97,7 @@ func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReacti
 	if reaction.Emoji.Name == "⏲️" {
 		_, err := createReminder(bot, reaction.UserID, reaction.GuildID, reaction.ChannelID, reaction.MessageID, "", time.Now().Add(8*time.Hour))
 		if err != nil {
-			log.Printf("[HandleReactionAdd] Failed to create reminder: %s", err.Error())
+			log.Printf("[main][HandleReactionAdd] Failed to create reminder: %s", err.Error())
 			return
 		}
 	}
