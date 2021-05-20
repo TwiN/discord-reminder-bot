@@ -12,10 +12,16 @@ import (
 )
 
 const (
-	IncreaseDuration = "➕"
-	DecreaseDuration = "➖"
-	DeleteReminder   = "🗑️"
-	RefreshDuration  = "🔄"
+	EmojiCreateReminder    = "⏰"
+	EmojiCreateReminderAlt = "⏲️"
+
+	EmojiIncreaseDuration = "➕"
+	EmojiDecreaseDuration = "➖"
+	EmojiDeleteReminder   = "🗑️"
+	EmojiRefreshDuration  = "🔄"
+
+	EmojiSuccess = "✅"
+	EmojiError   = "❌"
 )
 
 const (
@@ -47,7 +53,7 @@ func HandleMessage(bot *discordgo.Session, message *discordgo.MessageCreate) {
 
 func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, query string) {
 	if len(query) == 0 {
-		_, _ = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("**Usage:**\n```%sRemindMe <DURATION> [NOTE]```**Where:**\n- `<DURATION>` must be use one of the following formats: `30m`, `6h30m`, `48h`\n- `[NOTE]` is an optional note to attach to the reminder with less than %d characters\n:exclamation: You can also create a reminder by reacting with ⏲ to a message", cfg.CommandPrefix, MaximumNoteLength), message.Reference())
+		_, _ = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("**Usage:**\n```%sRemindMe <DURATION> [NOTE]```**Where:**\n- `<DURATION>` must be use one of the following formats: `30m`, `6h30m`, `48h`\n- `[NOTE]` is an optional note to attach to the reminder with less than %d characters\n:exclamation: _You can also create a reminder by reacting with %s or %s to a message_", cfg.CommandPrefix, MaximumNoteLength, EmojiCreateReminder, EmojiCreateReminderAlt), message.Reference())
 		return
 	}
 	// Validate duration
@@ -55,7 +61,7 @@ func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, qu
 	duration, err := time.ParseDuration(durationArgument)
 	if err != nil {
 		log.Printf("[main][HandleRemindMe] Failed to parse duration '%s' for %s: %s", query, message.Author.String(), err.Error())
-		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, "❌")
+		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
 		_, err = bot.ChannelMessageSendReply(message.ChannelID, "Invalid duration format. Try something like `45m`, `1h30m`, or `13h`.", message.Reference())
 		if err != nil {
 			log.Printf("[main][HandleRemindMe] Failed to reply to message: %s", err.Error())
@@ -63,7 +69,7 @@ func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, qu
 		return
 	}
 	if duration < MinimumReminderDuration || duration > MaximumReminderDuration {
-		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, "❌")
+		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
 		_, err = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("Duration must between %s and %s", MinimumReminderDuration, MaximumReminderDuration), message.Reference())
 		if err != nil {
 			log.Printf("[main][HandleRemindMe] Failed to reply to message: %s", err.Error())
@@ -73,7 +79,7 @@ func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, qu
 	// Validate note
 	note := strings.TrimSpace(strings.TrimPrefix(query, durationArgument))
 	if len(note) > MaximumNoteLength {
-		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, "❌")
+		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
 		_, err = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("Note must have less than %d characters", MaximumNoteLength), message.Reference())
 		if err != nil {
 			log.Printf("[main][HandleRemindMe] Failed to reply to message: %s", err.Error())
@@ -84,17 +90,17 @@ func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, qu
 	_, err = createReminder(bot, message.Author.ID, message.GuildID, message.ChannelID, message.ID, note, time.Now().Add(duration))
 	if err != nil {
 		log.Printf("[main][HandleRemindMe] Failed to create reminder: %s", err.Error())
-		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, "❌")
+		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
 		return
 	}
-	_ = bot.MessageReactionAdd(message.ChannelID, message.ID, "✅")
+	_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiSuccess)
 }
 
 func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReactionAdd) {
 	if reaction.UserID == bot.State.User.ID {
 		return
 	}
-	if reaction.Emoji.Name == "⏲️" {
+	if reaction.Emoji.Name == EmojiCreateReminder || reaction.Emoji.Name == EmojiCreateReminderAlt {
 		_, err := createReminder(bot, reaction.UserID, reaction.GuildID, reaction.ChannelID, reaction.MessageID, "", time.Now().Add(8*time.Hour))
 		if err != nil {
 			log.Printf("[main][HandleReactionAdd] Failed to create reminder: %s", err.Error())
@@ -102,7 +108,7 @@ func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReacti
 		}
 	}
 	// If the user wants to increase the duration
-	if reaction.Emoji.Name == IncreaseDuration || reaction.Emoji.Name == DecreaseDuration || reaction.Emoji.Name == DeleteReminder || reaction.Emoji.Name == RefreshDuration {
+	if reaction.Emoji.Name == EmojiIncreaseDuration || reaction.Emoji.Name == EmojiDecreaseDuration || reaction.Emoji.Name == EmojiDeleteReminder || reaction.Emoji.Name == EmojiRefreshDuration {
 		message, err := bot.ChannelMessage(reaction.ChannelID, reaction.MessageID)
 		if err != nil {
 			return
@@ -120,18 +126,18 @@ func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReacti
 				return
 			}
 			switch reaction.Emoji.Name {
-			case IncreaseDuration:
+			case EmojiIncreaseDuration:
 				reminder.Time = reminder.Time.Add(time.Hour)
 				_ = database.UpdateReminder(reminder)
 				_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
-			case DecreaseDuration:
+			case EmojiDecreaseDuration:
 				// XXX: no need to worry about checking if we're under 0, just let it be naturally handled
 				reminder.Time = reminder.Time.Add(-time.Hour)
 				_ = database.UpdateReminder(reminder)
 				_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
-			case RefreshDuration:
+			case EmojiRefreshDuration:
 				_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
-			case DeleteReminder:
+			case EmojiDeleteReminder:
 				_ = database.DeleteReminderByNotificationMessageID(reminder.NotificationMessageID)
 				_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, "~~"+reminder.GenerateNotificationMessageContent()+"~~")
 			default:
@@ -164,9 +170,9 @@ func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageI
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reminder in database: %s", err.Error())
 	}
-	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, RefreshDuration)
-	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, IncreaseDuration)
-	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, DecreaseDuration)
-	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, DeleteReminder)
+	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, EmojiRefreshDuration)
+	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, EmojiIncreaseDuration)
+	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, EmojiDecreaseDuration)
+	_ = bot.MessageReactionAdd(botMessage.ChannelID, botMessage.ID, EmojiDeleteReminder)
 	return reminder, nil
 }
