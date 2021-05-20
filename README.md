@@ -36,10 +36,10 @@ to make the differentiation between active and inactive reminders:
 
 
 ## Usage
-| Environment variable | Description | Required | Default |
-|:--- |:--- |:--- |:--- |
-| DISCORD_BOT_TOKEN | Discord bot token | yes | `""` |
-| COMMAND_PREFIX | Character prepending all bot commands. Must be exactly 1 character, or it will default to `!` | no | `!` |
+| Environment variable | Description                           | Required | Default |
+|:-------------------- |:------------------------------------- |:--- |:---- |
+| DISCORD_BOT_TOKEN    | Discord bot token                     | yes | `""` |
+| COMMAND_PREFIX       | Character prepending all bot commands | no  | `!`  |
 
 
 ## Getting started
