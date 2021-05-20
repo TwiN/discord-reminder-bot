@@ -20,7 +20,7 @@ func load() {
 	if len(cfg.DiscordToken) == 0 {
 		panic("environment variable 'DISCORD_BOT_TOKEN' must not be empty")
 	}
-	if len(cfg.CommandPrefix) != 1 {
+	if len(cfg.CommandPrefix) == 0 {
 		cfg.CommandPrefix = "!"
 	}
 }
