@@ -39,7 +39,7 @@ func HandleMessage(bot *discordgo.Session, message *discordgo.MessageCreate) {
 		command = strings.ToLower(command)
 		log.Printf("[main][HandleMessage] command=%s; query=%s", command, query)
 		switch command {
-		case "remindme":
+		case "remindme", "remind", "reminder":
 			HandleRemindMe(bot, message, query)
 		}
 	}
