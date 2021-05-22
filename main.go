@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -44,7 +43,7 @@ func waitUntilTermination() {
 
 func Connect(discordToken string) (*discordgo.Session, error) {
 	discordgo.MakeIntent(discordgo.IntentsGuildMessageReactions)
-	discord, err := discordgo.New(fmt.Sprintf("Bot %s", discordToken))
+	discord, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
 		return nil, err
 	}
