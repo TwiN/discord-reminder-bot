@@ -41,6 +41,7 @@ func waitUntilTermination() {
 	<-killChannel
 }
 
+// Connect starts a Discord session
 func Connect(discordToken string) (*discordgo.Session, error) {
 	discordgo.MakeIntent(discordgo.IntentsGuildMessageReactions)
 	discord, err := discordgo.New("Bot " + discordToken)
