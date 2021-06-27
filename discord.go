@@ -15,10 +15,10 @@ const (
 	EmojiCreateReminder    = "⏰"
 	EmojiCreateReminderAlt = "⏲️"
 
-	EmojiIncreaseDuration = "➕"
-	EmojiDecreaseDuration = "➖"
-	EmojiDeleteReminder   = "🗑️"
 	EmojiRefreshDuration  = "🔄"
+	EmojiIncreaseDuration = "🔼"
+	EmojiDecreaseDuration = "🔽"
+	EmojiDeleteReminder   = "🗑️"
 
 	EmojiSuccess = "✅"
 	EmojiError   = "❌"
