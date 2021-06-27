@@ -91,6 +91,7 @@ func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, qu
 	_, err = createReminder(bot, message.Author.ID, message.GuildID, message.ChannelID, message.ID, note, time.Now().Add(duration))
 	if err != nil {
 		log.Printf("[main][HandleRemindMe] Failed to create reminder: %s", err.Error())
+		_, err = bot.ChannelMessageSendReply(message.ChannelID, "Error: "+err.Error(), message.Reference())
 		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
 		return
 	}
