@@ -25,10 +25,11 @@ const (
 )
 
 const (
-	MaximumNoteLength = 240
+	MaximumNoteLength               = 240
+	MaximumNumberOfRemindersPerUser = 50
 
 	MinimumReminderDuration = time.Minute
-	MaximumReminderDuration = 90 * 24 * time.Hour
+	MaximumReminderDuration = 180 * 24 * time.Hour
 )
 
 func HandleMessage(bot *discordgo.Session, message *discordgo.MessageCreate) {
@@ -150,6 +151,10 @@ func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReacti
 func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageID, note string, when time.Time) (*core.Reminder, error) {
 	if len(note) > MaximumNoteLength {
 		return nil, fmt.Errorf("note exceeded maximum length of %d", MaximumNoteLength)
+	}
+	numberOfReminders, _ := database.CountRemindersByUserID(userID)
+	if numberOfReminders > MaximumNumberOfRemindersPerUser {
+		return nil, fmt.Errorf("you have reached the maximum number of reminders a single user can have (%d)", MaximumNumberOfRemindersPerUser)
 	}
 	reminder := &core.Reminder{
 		UserID:      userID,

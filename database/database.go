@@ -123,6 +123,20 @@ func CountReminders() (int, error) {
 	return numberOfReminders, nil
 }
 
+func CountRemindersByUserID(userId string) (int, error) {
+	rows, err := db.Query("SELECT COUNT(1) FROM reminder WHERE user_id = $1", userId)
+	if err != nil {
+		return 0, err
+	}
+	var numberOfReminders int
+	for rows.Next() {
+		_ = rows.Scan(&numberOfReminders)
+		break
+	}
+	_ = rows.Close()
+	return numberOfReminders, nil
+}
+
 func DeleteReminderByNotificationMessageID(messageID string) error {
 	start := time.Now()
 	_, err := db.Exec("DELETE FROM reminder WHERE notification_message_id = $1", messageID)
