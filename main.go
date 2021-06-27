@@ -18,7 +18,10 @@ var (
 )
 
 func main() {
-	database.Initialize("sqlite", "data.db")
+	err := database.Initialize("sqlite", "data.db")
+	if err != nil {
+		panic(err)
+	}
 	cfg = config.Get()
 	bot, err := Connect(cfg.DiscordToken)
 	if err != nil {
