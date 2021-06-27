@@ -9,30 +9,19 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var (
-	databaseDriver string
-	databasePath   string
-)
+var db *sql.DB
 
-func Initialize(driver, path string) {
-	databaseDriver = driver
-	databasePath = path
-	log.Printf("[database][Initialize] Beginning schema migration on database with driver=%s", driver)
-	createSchema()
-}
-
-func connect() *sql.DB {
-	db, err := sql.Open(databaseDriver, databasePath)
+func Initialize(driver, path string) (err error) {
+	db, err = sql.Open(driver, path)
 	if err != nil {
-		panic("failed to connect database")
+		return err
 	}
-	return db
+	log.Printf("[database][Initialize] Beginning schema migration on database with driver=%s", driver)
+	return createSchema()
 }
 
 // createSchema creates the schema required to perform all database operations.
-func createSchema() {
-	db := connect()
-	defer db.Close()
+func createSchema() error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS reminder (
 			notification_message_id VARCHAR(64) PRIMARY KEY, 
@@ -42,15 +31,11 @@ func createSchema() {
 			reminder_time           TIMESTAMP
 		)
 	`)
-	if err != nil {
-		panic("unable to create table in database: " + err.Error())
-	}
+	return err
 }
 
 func CreateReminder(reminder *core.Reminder) error {
 	start := time.Now()
-	db := connect()
-	defer db.Close()
 	_, err := db.Exec(
 		"INSERT INTO reminder (notification_message_id, user_id, message_link, note, reminder_time) VALUES ($1, $2, $3, $4, $5)",
 		reminder.NotificationMessageID,
@@ -69,8 +54,6 @@ func CreateReminder(reminder *core.Reminder) error {
 
 func GetReminderByNotificationMessageID(messageID string) (*core.Reminder, error) {
 	start := time.Now()
-	db := connect()
-	defer db.Close()
 	rows, err := db.Query("SELECT notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE notification_message_id = $1", messageID)
 	if err != nil {
 		return nil, err
@@ -94,8 +77,6 @@ func GetReminderByNotificationMessageID(messageID string) (*core.Reminder, error
 // Note that the only fields supported for updates are Reminder.Note and Reminder.Time
 func UpdateReminder(reminder *core.Reminder) error {
 	start := time.Now()
-	db := connect()
-	defer db.Close()
 	_, err := db.Exec("UPDATE reminder SET reminder_time = $1, note = $2 WHERE notification_message_id = $3", reminder.Time, reminder.Note, reminder.NotificationMessageID)
 	if err != nil {
 		log.Printf("[database][UpdateReminder] Failed to update reminder with NotificationMessageID=%s; duration=%dms", reminder.NotificationMessageID, time.Since(start).Milliseconds())
@@ -108,8 +89,6 @@ func UpdateReminder(reminder *core.Reminder) error {
 // GetOverdueReminders retrieves at most 5 reminders who have exceeded the time at which said reminder was due
 func GetOverdueReminders() ([]*core.Reminder, error) {
 	start := time.Now()
-	db := connect()
-	defer db.Close()
 	rows, err := db.Query(
 		"SELECT notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE reminder_time < $1 ORDER BY reminder_time LIMIT 5",
 		time.Now(),
@@ -131,8 +110,6 @@ func GetOverdueReminders() ([]*core.Reminder, error) {
 }
 
 func CountReminders() (int, error) {
-	db := connect()
-	defer db.Close()
 	rows, err := db.Query("SELECT COUNT(1) FROM reminder")
 	if err != nil {
 		return 0, err
@@ -148,8 +125,6 @@ func CountReminders() (int, error) {
 
 func DeleteReminderByNotificationMessageID(messageID string) error {
 	start := time.Now()
-	db := connect()
-	defer db.Close()
 	_, err := db.Exec("DELETE FROM reminder WHERE notification_message_id = $1", messageID)
 	if err != nil {
 		log.Printf("[database][DeleteReminderByNotificationMessageID] Failed to delete reminder with NotificationMessageID=%s; duration=%dms", messageID, time.Since(start).Milliseconds())
