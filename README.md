@@ -5,7 +5,7 @@
 This is a simple Discord bot for managing reminders.
 
 If you react to a message with ⏰ (`:alarm_clock:`) or ⏲ (`:timer:`), a message will be sent to you through direct message informing you
-that you will be reminded about the message you sent in 8 hours.
+that you will be reminded about the message you reacted to in 8 hours.
 
 You may also use the following syntax:
 ```
