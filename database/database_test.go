@@ -9,7 +9,6 @@ import (
 
 func TestCreateReminder(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
-	db := connect()
 	defer db.Close()
 	targetTime := time.Now().Round(time.Minute)
 	err := CreateReminder(&core.Reminder{
@@ -48,7 +47,6 @@ func TestCreateReminder(t *testing.T) {
 
 func TestDeleteReminderByNotificationMessageID(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
-	db := connect()
 	defer db.Close()
 	err := CreateReminder(&core.Reminder{
 		NotificationMessageID: "1",
@@ -82,7 +80,6 @@ func TestDeleteReminderByNotificationMessageID(t *testing.T) {
 
 func TestUpdateReminder(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
-	db := connect()
 	defer db.Close()
 	now := time.Now().Round(time.Minute)
 	err := CreateReminder(&core.Reminder{
@@ -125,7 +122,6 @@ func TestUpdateReminder(t *testing.T) {
 
 func TestCountReminders(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
-	db := connect()
 	defer db.Close()
 	now := time.Now().Round(time.Minute)
 	_ = CreateReminder(&core.Reminder{NotificationMessageID: "1", Time: now.Add(time.Hour)})
@@ -142,7 +138,6 @@ func TestCountReminders(t *testing.T) {
 
 func TestGetOverdueReminders(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
-	db := connect()
 	defer db.Close()
 	now := time.Now().Round(time.Minute)
 	_ = CreateReminder(&core.Reminder{NotificationMessageID: "1", Time: now.Add(time.Hour)})
@@ -162,7 +157,6 @@ func TestGetOverdueReminders(t *testing.T) {
 
 func TestGetOverdueRemindersRetrievesTheOldestOnesFirst(t *testing.T) {
 	Initialize("sqlite", t.TempDir()+"/test.db")
-	db := connect()
 	defer db.Close()
 	now := time.Now().Round(time.Minute)
 	_ = CreateReminder(&core.Reminder{NotificationMessageID: "1", Time: now.Add(time.Hour)})
