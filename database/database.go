@@ -11,6 +11,7 @@ import (
 
 var db *sql.DB
 
+// Initialize the database and creates the schema if it doesn't already exist in the file specified
 func Initialize(driver, path string) (err error) {
 	db, err = sql.Open(driver, path)
 	if err != nil {
@@ -28,7 +29,15 @@ func createSchema() error {
 			user_id                 VARCHAR(64), 
 			message_link            VARCHAR(128),
 			note                    VARCHAR(255),
-			reminder_time           TIMESTAMP
+			reminder_time           TIMESTAMP,
+		    -- If I implement repeating intervals, I need to support keywords like "everyday in (time in 8h)" OR I could allow users to configure their timezones 
+		    -- (and persist it in a separate table), AND I need to create a command to print all reminders
+		    --
+		    -- Something like r!remindme [DURATION] every [INTERVAL DURATION] [NOTE]
+		    -- e.g. "r!remindme 10h every 24h Go jog" would remind somebody "Go jog" in 10 hours from now, every 24 hours
+		    --
+		    repeating               INTEGER DEFAULT FALSE 
+		    
 		)
 	`)
 	return err
