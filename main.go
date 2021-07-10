@@ -8,12 +8,12 @@ import (
 
 	"github.com/TwinProduction/discord-reminder-bot/config"
 	"github.com/TwinProduction/discord-reminder-bot/database"
+	"github.com/TwinProduction/discord-reminder-bot/discord"
 	"github.com/bwmarrin/discordgo"
 )
 
 var (
 	killChannel chan os.Signal
-	botMention  string
 	cfg         *config.Config
 )
 
@@ -28,12 +28,8 @@ func main() {
 		panic(err)
 	}
 	defer bot.Close()
-	botMention = "<@!" + bot.State.User.ID + ">"
-	bot.AddHandler(HandleMessage)
-	bot.AddHandler(HandleReactionAdd)
-	_ = bot.UpdateListeningStatus(config.Get().CommandPrefix + "RemindMe")
 	log.Printf("Bot with id=%s has connected successfully", bot.State.User.ID)
-	go worker(bot)
+	discord.Start(bot, cfg)
 	waitUntilTermination()
 	log.Println("Terminating bot")
 }
@@ -47,10 +43,10 @@ func waitUntilTermination() {
 // Connect starts a Discord session
 func Connect(discordToken string) (*discordgo.Session, error) {
 	discordgo.MakeIntent(discordgo.IntentsGuildMessageReactions)
-	discord, err := discordgo.New("Bot " + discordToken)
+	session, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
 		return nil, err
 	}
-	err = discord.Open()
-	return discord, err
+	err = session.Open()
+	return session, err
 }
