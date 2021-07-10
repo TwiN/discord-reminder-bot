@@ -25,3 +25,10 @@ func (r Reminder) GenerateReminderMessageContent() string {
 	}
 	return "You asked me to remind you about this message: " + r.MessageLink
 }
+
+func (r Reminder) GenerateShortReminderMessageContent() string {
+	if len(r.Note) > 0 {
+		return r.MessageLink + ":\n```" + r.Note + "```"
+	}
+	return r.MessageLink
+}
