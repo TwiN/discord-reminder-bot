@@ -84,20 +84,30 @@ func HandleListReminders(bot *discordgo.Session, message *discordgo.MessageCreat
 		log.Println("[discord][handleReminderListPage] Failed to open direct message:", err.Error())
 		return
 	}
-	msg, err := createReminderListMessageEmbed(message.Author.ID, 1)
+	msg, numberOfPages, err := createReminderListMessageEmbed(directMessageChannel.ID, message.Author.ID, 1)
 	if err != nil {
 		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
+		log.Println("[discord][HandleListReminders] Failed to create embed message:", err.Error())
 		return
 	}
-	_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiSuccess)
 	messageSent, err := bot.ChannelMessageSendEmbed(directMessageChannel.ID, msg)
 	if err != nil {
 		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
+		log.Println("[discord][HandleListReminders] Failed to send message:", err.Error())
 		return
 	}
+	_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiSuccess)
 	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageOne)
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageTwo)
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageThree)
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageFour)
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageFive)
+	if numberOfPages >= 2 {
+		_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageTwo)
+	}
+	if numberOfPages >= 3 {
+		_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageThree)
+	}
+	if numberOfPages >= 4 {
+		_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageFour)
+	}
+	if numberOfPages >= 5 {
+		_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageFive)
+	}
 }

@@ -2,6 +2,7 @@ package discord
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/TwinProduction/discord-reminder-bot/config"
@@ -35,15 +36,19 @@ const (
 
 	MinimumReminderDuration = time.Minute
 	MaximumReminderDuration = 180 * 24 * time.Hour
+
+	ReminderListPageSize = 7
 )
 
 var (
 	botMention       string
+	botAvatar        string
 	botCommandPrefix string
 )
 
 func Start(bot *discordgo.Session, cfg *config.Config) {
 	botMention = "<@!" + bot.State.User.ID + ">"
+	botAvatar = bot.State.User.AvatarURL("128")
 	botCommandPrefix = cfg.CommandPrefix
 	bot.AddHandler(HandleMessage)
 	bot.AddHandler(HandleReactionAdd)
@@ -98,35 +103,43 @@ func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageI
 	return reminder, nil
 }
 
-func createReminderListMessageEmbed(userID string, page int) (*discordgo.MessageEmbed, error) {
-	reminders, err := database.GetRemindersByUserID(userID, page-1)
+// createReminderListMessageEmbed creates a MessageEmbed and returns the total number of pages
+// for the number of reminders that the user has
+func createReminderListMessageEmbed(notificationMessageChannelID, userID string, page int) (*discordgo.MessageEmbed, int, error) {
+	reminders, err := database.GetRemindersByUserID(userID, page-1, ReminderListPageSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	var fields []*discordgo.MessageEmbedField
 	for _, reminder := range reminders {
 		fields = append(fields, &discordgo.MessageEmbedField{
-			Name:  "In " + time.Until(reminder.Time).Round(time.Second).String(),
-			Value: reminder.GenerateShortReminderMessageContent(),
+			Name:  fmt.Sprintf("%d: In %s from now", reminder.ID, time.Until(reminder.Time).Round(time.Second).String()),
+			Value: reminder.GenerateReminderMessageContentInList(notificationMessageChannelID),
 		})
 	}
 	var description string
 	if len(fields) == 0 {
 		description = "_No reminders to display_"
+	} else {
+		description = "Below is a list of all reminders on page " + strconv.Itoa(page)
 	}
-	var numberOfPages int
-	if len(reminders) == 10 {
-		numberOfReminders, _ := database.CountRemindersByUserID(userID)
-		numberOfPages = (numberOfReminders / 10) + 1
-	}
+	numberOfReminders, _ := database.CountRemindersByUserID(userID)
+	numberOfPages := (numberOfReminders / ReminderListPageSize) + 1
 	msg := &discordgo.MessageEmbed{
 		Type:        discordgo.EmbedTypeRich,
 		Title:       "Reminders",
 		Description: description,
 		Fields:      fields,
+		Color:       0x20B020,
+		Thumbnail: &discordgo.MessageEmbedThumbnail{
+			URL:    botAvatar,
+			Width:  128,
+			Height: 128,
+		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("Page %d out of %d", page, numberOfPages),
+			Text:    fmt.Sprintf("Page %d out of %d", page, numberOfPages),
+			IconURL: botAvatar,
 		},
 	}
-	return msg, nil
+	return msg, numberOfPages, nil
 }

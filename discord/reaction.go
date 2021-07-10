@@ -91,7 +91,7 @@ func handleReactionModifyReminder(bot *discordgo.Session, reaction *discordgo.Me
 }
 
 func updateExistingReminderListMessage(bot *discordgo.Session, userID, channelID, messageID string, page int) {
-	msg, err := createReminderListMessageEmbed(userID, page)
+	msg, _, err := createReminderListMessageEmbed(channelID, userID, page)
 	if err != nil {
 		return
 	}

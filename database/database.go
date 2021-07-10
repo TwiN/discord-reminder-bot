@@ -61,16 +61,19 @@ func CreateReminder(reminder *core.Reminder) error {
 	return err
 }
 
+// GetReminderByNotificationMessageID retrieves a reminder by its NotificationMessageID.
+// NotificationMessageID is always unique, because it represents the message ID of the
+// message sent to the user by direct message
 func GetReminderByNotificationMessageID(messageID string) (*core.Reminder, error) {
 	start := time.Now()
-	rows, err := db.Query("SELECT notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE notification_message_id = $1", messageID)
+	rows, err := db.Query("SELECT rowid, notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE notification_message_id = $1", messageID)
 	if err != nil {
 		return nil, err
 	}
 	var reminder *core.Reminder
 	for rows.Next() {
 		reminder = &core.Reminder{}
-		_ = rows.Scan(&reminder.NotificationMessageID, &reminder.UserID, &reminder.MessageLink, &reminder.Note, &reminder.Time)
+		_ = rows.Scan(&reminder.ID, &reminder.NotificationMessageID, &reminder.UserID, &reminder.MessageLink, &reminder.Note, &reminder.Time)
 		break
 	}
 	_ = rows.Close()
@@ -99,7 +102,7 @@ func UpdateReminder(reminder *core.Reminder) error {
 func GetOverdueReminders() ([]*core.Reminder, error) {
 	start := time.Now()
 	rows, err := db.Query(
-		"SELECT notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE reminder_time < $1 ORDER BY reminder_time LIMIT 5",
+		"SELECT rowid, notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE reminder_time < $1 ORDER BY reminder_time LIMIT 5",
 		time.Now(),
 	)
 	if err != nil {
@@ -108,7 +111,7 @@ func GetOverdueReminders() ([]*core.Reminder, error) {
 	var reminders []*core.Reminder
 	for rows.Next() {
 		reminder := &core.Reminder{}
-		_ = rows.Scan(&reminder.NotificationMessageID, &reminder.UserID, &reminder.MessageLink, &reminder.Note, &reminder.Time)
+		_ = rows.Scan(&reminder.ID, &reminder.NotificationMessageID, &reminder.UserID, &reminder.MessageLink, &reminder.Note, &reminder.Time)
 		reminders = append(reminders, reminder)
 	}
 	_ = rows.Close()
@@ -132,15 +135,15 @@ func CountReminders() (int, error) {
 	return numberOfReminders, nil
 }
 
-func GetRemindersByUserID(userId string, page int) ([]*core.Reminder, error) {
-	rows, err := db.Query("SELECT notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE user_id = $1 ORDER BY reminder_time LIMIT 10 OFFSET $2", userId, page*10)
+func GetRemindersByUserID(userId string, page, pageSize int) ([]*core.Reminder, error) {
+	rows, err := db.Query("SELECT rowid, notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE user_id = $1 ORDER BY reminder_time LIMIT $2 OFFSET $3", userId, pageSize, page*pageSize)
 	if err != nil {
 		return nil, err
 	}
 	var reminders []*core.Reminder
 	for rows.Next() {
 		reminder := &core.Reminder{}
-		_ = rows.Scan(&reminder.NotificationMessageID, &reminder.UserID, &reminder.MessageLink, &reminder.Note, &reminder.Time)
+		_ = rows.Scan(&reminder.ID, &reminder.NotificationMessageID, &reminder.UserID, &reminder.MessageLink, &reminder.Note, &reminder.Time)
 		reminders = append(reminders, reminder)
 	}
 	_ = rows.Close()
