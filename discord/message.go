@@ -95,9 +95,9 @@ func HandleListReminders(bot *discordgo.Session, message *discordgo.MessageCreat
 		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
 		return
 	}
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, "1️⃣")
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, "2️⃣")
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, "3️⃣")
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, "4️⃣")
-	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, "5️⃣")
+	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageOne)
+	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageTwo)
+	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageThree)
+	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageFour)
+	_ = bot.MessageReactionAdd(messageSent.ChannelID, messageSent.ID, EmojiPageFive)
 }

@@ -19,6 +19,12 @@ const (
 	EmojiDecreaseDuration = "🔽"
 	EmojiDeleteReminder   = "🗑️"
 
+	EmojiPageOne   = "1️⃣"
+	EmojiPageTwo   = "2️⃣"
+	EmojiPageThree = "3️⃣"
+	EmojiPageFour  = "4️⃣"
+	EmojiPageFive  = "5️⃣"
+
 	EmojiSuccess = "✅"
 	EmojiError   = "❌"
 )
@@ -41,6 +47,7 @@ func Start(bot *discordgo.Session, cfg *config.Config) {
 	botCommandPrefix = cfg.CommandPrefix
 	bot.AddHandler(HandleMessage)
 	bot.AddHandler(HandleReactionAdd)
+	bot.AddHandler(HandleReactionRemove)
 	_ = bot.UpdateListeningStatus(botCommandPrefix + "RemindMe")
 	go worker(bot)
 }
@@ -96,7 +103,6 @@ func createReminderListMessageEmbed(userID string, page int) (*discordgo.Message
 	if err != nil {
 		return nil, err
 	}
-	// TODO: show the numbers :one: :two: :three: :four: :five:
 	var fields []*discordgo.MessageEmbedField
 	for _, reminder := range reminders {
 		fields = append(fields, &discordgo.MessageEmbedField{
