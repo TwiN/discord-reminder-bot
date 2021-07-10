@@ -33,7 +33,7 @@ func createSchema() error {
 		    -- If I implement repeating intervals, I need to support keywords like "everyday in (time in 8h)" OR I could allow users to configure their timezones 
 		    -- (and persist it in a separate table), AND I need to create a command to print all reminders
 		    --
-		    -- Something like r!remindme [DURATION] every [INTERVAL DURATION] [NOTE]
+		    -- Something like r!remindme every [DURATION]  [INTERVAL DURATION] [NOTE]
 		    -- e.g. "r!remindme 10h every 24h Go jog" would remind somebody "Go jog" in 10 hours from now, every 24 hours
 		    --
 		    repeating               INTEGER DEFAULT FALSE 
@@ -130,6 +130,21 @@ func CountReminders() (int, error) {
 	}
 	_ = rows.Close()
 	return numberOfReminders, nil
+}
+
+func GetRemindersByUserID(userId string, page int) ([]*core.Reminder, error) {
+	rows, err := db.Query("SELECT notification_message_id, user_id, message_link, note, reminder_time FROM reminder WHERE user_id = $1 ORDER BY reminder_time LIMIT 10 OFFSET $2", userId, page*10)
+	if err != nil {
+		return nil, err
+	}
+	var reminders []*core.Reminder
+	for rows.Next() {
+		reminder := &core.Reminder{}
+		_ = rows.Scan(&reminder.NotificationMessageID, &reminder.UserID, &reminder.MessageLink, &reminder.Note, &reminder.Time)
+		reminders = append(reminders, reminder)
+	}
+	_ = rows.Close()
+	return reminders, nil
 }
 
 func CountRemindersByUserID(userId string) (int, error) {
