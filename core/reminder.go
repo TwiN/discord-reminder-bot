@@ -13,6 +13,9 @@ type Reminder struct {
 }
 
 func (r Reminder) GenerateNotificationMessageContent() string {
+	if time.Until(r.Time) < 0 {
+		return "I will remind you about " + r.MessageLink + " at " + r.Time.Format(time.RFC3339)
+	}
 	return "I will remind you about " + r.MessageLink + " in " + time.Until(r.Time).Round(time.Second).String()
 }
 
