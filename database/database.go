@@ -13,12 +13,14 @@ var db *sql.DB
 
 // Initialize the database and creates the schema if it doesn't already exist in the file specified
 func Initialize(driver, path string) (err error) {
-	db, err = sql.Open(driver, path)
-	if err != nil {
+	if db, err = sql.Open(driver, path); err != nil {
 		return err
 	}
 	log.Printf("[database][Initialize] Beginning schema migration on database with driver=%s", driver)
-	return createSchema()
+	if err = createSchema(); err != nil {
+		_ = db.Close()
+	}
+	return err
 }
 
 // createSchema creates the schema required to perform all database operations.
