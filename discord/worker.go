@@ -35,9 +35,7 @@ func worker(bot *discordgo.Session) {
 				_ = database.DeleteReminderByNotificationMessageID(reminder.NotificationMessageID)
 				continue
 			}
-			// Cross notification message
-			_, _ = updateExistingMessage(bot, directMessage.ChannelID, reminder.NotificationMessageID, "", "~~"+reminder.GenerateNotificationMessageContent()+"~~")
-			_ = database.DeleteReminderByNotificationMessageID(reminder.NotificationMessageID)
+			deleteReminder(bot, directMessage.ChannelID, directMessage.ID, reminder)
 		}
 	}
 }
