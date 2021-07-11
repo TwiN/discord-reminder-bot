@@ -35,6 +35,12 @@ to make the differentiation between active and inactive reminders:
 ![deleted reminder](.github/assets/reminder-crossed.png)
 
 
+You may also list your active reminders by typing the following:
+```
+!list
+```
+
+
 ## Usage
 | Environment variable | Description                           | Required | Default |
 |:-------------------- |:------------------------------------- |:--- |:---- |
