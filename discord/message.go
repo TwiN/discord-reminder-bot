@@ -21,11 +21,11 @@ func HandleMessage(bot *discordgo.Session, message *discordgo.MessageCreate) {
 		command := strings.Replace(strings.Split(message.Content, " ")[0], botCommandPrefix, "", 1)
 		query := strings.TrimSpace(strings.Replace(message.Content, botCommandPrefix+command, "", 1))
 		command = strings.ToLower(command)
-		log.Printf("[discord][HandleMessage] command=%s; query=%s", command, query)
+		log.Printf("[discord][HandleMessage] command=%s; arguments=%s", command, query)
 		switch command {
 		case "remindme", "remind", "reminder", "help":
 			HandleRemindMe(bot, message, query)
-		case "list":
+		case "list", "reminders", "view":
 			HandleListReminders(bot, message)
 		}
 	}
