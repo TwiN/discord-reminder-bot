@@ -29,14 +29,14 @@ func worker(bot *discordgo.Session) {
 			_ = bot.UpdateListeningStatus(botCommandPrefix + "RemindMe")
 		}
 		for _, reminder := range reminders {
-			directMessage, err := sendDirectMessage(bot, reminder.UserID, reminder.GenerateReminderMessageContent())
+			directMessage, err := sendDirectMessage(bot, reminder.UserID, "", reminder.GenerateReminderMessageContent())
 			if err != nil {
 				log.Printf("[discord][worker] Error: %s", err.Error())
 				_ = database.DeleteReminderByNotificationMessageID(reminder.NotificationMessageID)
 				continue
 			}
 			// Cross notification message
-			_, _ = bot.ChannelMessageEdit(directMessage.ChannelID, reminder.NotificationMessageID, "~~"+reminder.GenerateNotificationMessageContent()+"~~")
+			_, _ = updateExistingMessage(bot, directMessage.ChannelID, reminder.NotificationMessageID, "", "~~"+reminder.GenerateNotificationMessageContent()+"~~")
 			_ = database.DeleteReminderByNotificationMessageID(reminder.NotificationMessageID)
 		}
 	}

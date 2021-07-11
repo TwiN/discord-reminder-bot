@@ -48,7 +48,7 @@ var (
 
 func Start(bot *discordgo.Session, cfg *config.Config) {
 	botMention = "<@!" + bot.State.User.ID + ">"
-	botAvatar = bot.State.User.AvatarURL("128")
+	botAvatar = bot.State.User.AvatarURL("64")
 	botCommandPrefix = cfg.CommandPrefix
 	bot.AddHandler(HandleMessage)
 	bot.AddHandler(HandleReactionAdd)
@@ -58,16 +58,26 @@ func Start(bot *discordgo.Session, cfg *config.Config) {
 }
 
 // sendDirectMessage sends a direct message to a user and returns the ID of the message sent
-func sendDirectMessage(bot *discordgo.Session, userID string, message string) (*discordgo.Message, error) {
+func sendDirectMessage(bot *discordgo.Session, userID string, title, description string) (*discordgo.Message, error) {
 	directMessageChannel, err := bot.UserChannelCreate(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DM with %s: %s", userID, err.Error())
 	}
-	directMessage, err := bot.ChannelMessageSend(directMessageChannel.ID, message)
+	embed := generateMessageEmbed(title, description, 0x20B020)
+	message, err := bot.ChannelMessageSendEmbed(directMessageChannel.ID, embed)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send DM to %s: %s", userID, err.Error())
 	}
-	return directMessage, nil
+	return message, nil
+}
+
+func updateExistingMessage(bot *discordgo.Session, channelID, messageID, title, description string) (*discordgo.Message, error) {
+	embed := generateMessageEmbed(title, description, 0x20B020)
+	message, err := bot.ChannelMessageEditEmbed(channelID, messageID, embed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update message with ID %s in channel %s: %s", messageID, channelID, err.Error())
+	}
+	return message, nil
 }
 
 func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageID, note string, when time.Time) (*core.Reminder, error) {
@@ -87,7 +97,7 @@ func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageI
 		Note:        note,
 		Time:        when,
 	}
-	directMessage, err := sendDirectMessage(bot, userID, reminder.GenerateNotificationMessageContent())
+	directMessage, err := sendDirectMessage(bot, userID, "", reminder.GenerateNotificationMessageContent())
 	if err != nil {
 		return nil, err
 	}
@@ -125,21 +135,11 @@ func createReminderListMessageEmbed(notificationMessageChannelID, userID string,
 	}
 	numberOfReminders, _ := database.CountRemindersByUserID(userID)
 	numberOfPages := (numberOfReminders / ReminderListPageSize) + 1
-	msg := &discordgo.MessageEmbed{
-		Type:        discordgo.EmbedTypeRich,
-		Title:       "Reminders",
-		Description: description,
-		Fields:      fields,
-		Color:       0x20B020,
-		Thumbnail: &discordgo.MessageEmbedThumbnail{
-			URL:    botAvatar,
-			Width:  128,
-			Height: 128,
-		},
-		Footer: &discordgo.MessageEmbedFooter{
-			Text:    fmt.Sprintf("Page %d out of %d", page, numberOfPages),
-			IconURL: botAvatar,
-		},
+	embed := generateMessageEmbed("List of Reminders", description, 0x20B020)
+	embed.Fields = fields
+	embed.Footer = &discordgo.MessageEmbedFooter{
+		Text:    fmt.Sprintf("Page %d out of %d", page, numberOfPages),
+		IconURL: botAvatar,
 	}
-	return msg, numberOfPages, nil
+	return embed, numberOfPages, nil
 }

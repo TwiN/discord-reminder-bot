@@ -9,22 +9,24 @@ import (
 )
 
 func HandleReactionAdd(bot *discordgo.Session, reaction *discordgo.MessageReactionAdd) {
-	handleReaction(bot, reaction.MessageReaction)
+	handleReaction(bot, reaction.MessageReaction, false)
 }
 
 func HandleReactionRemove(bot *discordgo.Session, reaction *discordgo.MessageReactionRemove) {
-	handleReaction(bot, reaction.MessageReaction)
+	handleReaction(bot, reaction.MessageReaction, true)
 }
 
-func handleReaction(bot *discordgo.Session, reaction *discordgo.MessageReaction) {
+func handleReaction(bot *discordgo.Session, reaction *discordgo.MessageReaction, remove bool) {
 	// Make sure that the reaction is on one of the bot's messages
 	if reaction.UserID == bot.State.User.ID {
 		return
 	}
 	switch reaction.Emoji.Name {
 	case EmojiCreateReminder, EmojiCreateReminderAlt:
-		// Create a new reminder
-		handleReactionCreateReminder(bot, reaction)
+		// Create a new reminder when a user reacts with EmojiCreateReminder or EmojiCreateReminderAlt
+		if !remove {
+			handleReactionCreateReminder(bot, reaction)
+		}
 	case EmojiPageOne, EmojiPageTwo, EmojiPageThree, EmojiPageFour, EmojiPageFive:
 		// Navigate page of reminders
 		handleReactionListReminders(bot, reaction)
@@ -74,17 +76,17 @@ func handleReactionModifyReminder(bot *discordgo.Session, reaction *discordgo.Me
 	case EmojiIncreaseDuration:
 		reminder.Time = reminder.Time.Add(time.Hour)
 		_ = database.UpdateReminder(reminder)
-		_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
+		_, _ = updateExistingMessage(bot, reaction.ChannelID, reaction.MessageID, "", reminder.GenerateNotificationMessageContent())
 	case EmojiDecreaseDuration:
 		// No need to worry about checking if we're under 0, just let it be naturally handled
 		reminder.Time = reminder.Time.Add(-time.Hour)
 		_ = database.UpdateReminder(reminder)
-		_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
+		_, _ = updateExistingMessage(bot, reaction.ChannelID, reaction.MessageID, "", reminder.GenerateNotificationMessageContent())
 	case EmojiRefreshDuration:
-		_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, reminder.GenerateNotificationMessageContent())
+		_, _ = updateExistingMessage(bot, reaction.ChannelID, reaction.MessageID, "", reminder.GenerateNotificationMessageContent())
 	case EmojiDeleteReminder:
 		_ = database.DeleteReminderByNotificationMessageID(reminder.NotificationMessageID)
-		_, _ = bot.ChannelMessageEdit(reaction.ChannelID, reaction.MessageID, "~~"+reminder.GenerateNotificationMessageContent()+"~~")
+		_, _ = updateExistingMessage(bot, reaction.ChannelID, reaction.MessageID, "", "~~"+reminder.GenerateNotificationMessageContent()+"~~")
 	default:
 		return // not supported
 	}

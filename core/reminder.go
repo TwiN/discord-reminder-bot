@@ -15,21 +15,21 @@ type Reminder struct {
 
 func (r Reminder) GenerateNotificationMessageContent() string {
 	if time.Until(r.Time) < 0 {
-		return "I will remind you about " + r.MessageLink + " at " + r.Time.Format(time.RFC3339)
+		return "I will remind you about [this message](" + r.MessageLink + ") at " + r.Time.Format(time.RFC3339)
 	}
-	return "I will remind you about " + r.MessageLink + " in " + time.Until(r.Time).Round(time.Second).String()
+	return "I will remind you about [this message](" + r.MessageLink + ") in " + time.Until(r.Time).Round(time.Second).String()
 }
 
 func (r Reminder) GenerateReminderMessageContent() string {
 	if len(r.Note) > 0 {
-		return "You asked me to remind you about " + r.MessageLink + " and attached the following note:\n```" + r.Note + "```"
+		return "You asked me to remind you about [this message](" + r.MessageLink + ") and attached the following note:\n```" + r.Note + "```"
 	}
-	return "You asked me to remind you about this message: " + r.MessageLink
+	return "You asked me to remind you about this message: [this message](" + r.MessageLink + ")"
 }
 
 func (r Reminder) GenerateReminderMessageContentInList(notificationMessageChannelID string) string {
 	if len(r.Note) > 0 {
-		return "[✏ Edit](https://discord.com/channels/@me/" + notificationMessageChannelID + "/" + r.NotificationMessageID + ")  |  [✉ Message link](" + r.MessageLink + ") ```" + r.Note + "```"
+		return "[[Edit]](https://discord.com/channels/@me/" + notificationMessageChannelID + "/" + r.NotificationMessageID + ") [[Message link]](" + r.MessageLink + ") ```" + r.Note + "```"
 	}
-	return "[✏ Edit](https://discord.com/channels/@me/" + notificationMessageChannelID + "/" + r.NotificationMessageID + ")  |  [✉ Message link](" + r.MessageLink + ")"
+	return "[[Edit]](https://discord.com/channels/@me/" + notificationMessageChannelID + "/" + r.NotificationMessageID + ") [[Message link]](" + r.MessageLink + ")"
 }
