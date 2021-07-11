@@ -113,13 +113,13 @@ func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageI
 	return reminder, nil
 }
 
-func deleteReminder(bot *discordgo.Session, channelID, messageID string, reminder *core.Reminder) {
-	_, _ = updateExistingMessage(bot, channelID, messageID, "", "~~"+reminder.GenerateNotificationMessageContent()+"~~")
-	_ = bot.MessageReactionRemove(channelID, messageID, EmojiRefreshDuration, "@me")
-	_ = bot.MessageReactionRemove(channelID, messageID, EmojiIncreaseDuration, "@me")
-	_ = bot.MessageReactionRemove(channelID, messageID, EmojiDecreaseDuration, "@me")
-	_ = bot.MessageReactionRemove(channelID, messageID, EmojiDeleteReminder, "@me")
-	_ = database.DeleteReminderByNotificationMessageID(messageID)
+func deleteReminder(bot *discordgo.Session, directMessageChannelID string, reminder *core.Reminder) {
+	_, _ = updateExistingMessage(bot, directMessageChannelID, reminder.NotificationMessageID, "", "~~"+reminder.GenerateNotificationMessageContent()+"~~")
+	_ = bot.MessageReactionRemove(directMessageChannelID, reminder.NotificationMessageID, EmojiRefreshDuration, "@me")
+	_ = bot.MessageReactionRemove(directMessageChannelID, reminder.NotificationMessageID, EmojiIncreaseDuration, "@me")
+	_ = bot.MessageReactionRemove(directMessageChannelID, reminder.NotificationMessageID, EmojiDecreaseDuration, "@me")
+	_ = bot.MessageReactionRemove(directMessageChannelID, reminder.NotificationMessageID, EmojiDeleteReminder, "@me")
+	_ = database.DeleteReminderByNotificationMessageID(reminder.NotificationMessageID)
 }
 
 // createReminderListMessageEmbed creates a MessageEmbed and returns the total number of pages

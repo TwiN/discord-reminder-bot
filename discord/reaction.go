@@ -85,7 +85,7 @@ func handleReactionModifyReminder(bot *discordgo.Session, reaction *discordgo.Me
 	case EmojiRefreshDuration:
 		_, _ = updateExistingMessage(bot, reaction.ChannelID, reaction.MessageID, "", reminder.GenerateNotificationMessageContent())
 	case EmojiDeleteReminder:
-		deleteReminder(bot, reaction.ChannelID, reaction.MessageID, reminder)
+		deleteReminder(bot, reaction.ChannelID, reminder)
 	default:
 		return // not supported
 	}

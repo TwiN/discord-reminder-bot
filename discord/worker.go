@@ -35,7 +35,7 @@ func worker(bot *discordgo.Session) {
 				_ = database.DeleteReminderByNotificationMessageID(reminder.NotificationMessageID)
 				continue
 			}
-			deleteReminder(bot, directMessage.ChannelID, directMessage.ID, reminder)
+			deleteReminder(bot, directMessage.ChannelID, reminder)
 		}
 	}
 }
