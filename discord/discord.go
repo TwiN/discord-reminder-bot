@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	EmojiCreateReminder    = "⏰"
-	EmojiCreateReminderAlt = "⏲️"
+	EmojiCreateReminder     = "⏰"
+	EmojiCreateReminderAlt1 = "⏲️"
+	EmojiCreateReminderAlt2 = "🎗️️"
 
 	EmojiRefreshDuration  = "🔄"
 	EmojiIncreaseDuration = "🔼"

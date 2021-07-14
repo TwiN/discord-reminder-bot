@@ -22,8 +22,8 @@ func handleReaction(bot *discordgo.Session, reaction *discordgo.MessageReaction,
 		return
 	}
 	switch reaction.Emoji.Name {
-	case EmojiCreateReminder, EmojiCreateReminderAlt:
-		// Create a new reminder when a user reacts with EmojiCreateReminder or EmojiCreateReminderAlt
+	case EmojiCreateReminder, EmojiCreateReminderAlt1, EmojiCreateReminderAlt2:
+		// Create a new reminder when a user reacts with EmojiCreateReminder or EmojiCreateReminderAlt1
 		if !remove {
 			handleReactionCreateReminder(bot, reaction)
 		}

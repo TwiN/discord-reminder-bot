@@ -33,7 +33,7 @@ func HandleMessage(bot *discordgo.Session, message *discordgo.MessageCreate) {
 
 func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, query string) {
 	if len(query) == 0 {
-		_, _ = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("**Usage:**\n```%sRemindMe <DURATION> [NOTE]```**Where:**\n- `<DURATION>` must be use one of the following formats: `30m`, `6h30m`, `48h`\n- `[NOTE]` is an optional note to attach to the reminder with less than %d characters\n:exclamation: _You can also create a reminder by reacting with %s or %s to a message_", botCommandPrefix, MaximumNoteLength, EmojiCreateReminder, EmojiCreateReminderAlt), message.Reference())
+		_, _ = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("**Usage:**\n```%sRemindMe <DURATION> [NOTE]```**Where:**\n- `<DURATION>` must be use one of the following formats: `30m`, `6h30m`, `48h`\n- `[NOTE]` is an optional note to attach to the reminder with less than %d characters\n\n:information_source: _You can also create a reminder by reacting with %s, %s or %s to a message, and you can view your reminders by using `%slist`._", botCommandPrefix, MaximumNoteLength, EmojiCreateReminder, EmojiCreateReminderAlt1, EmojiCreateReminderAlt2, botCommandPrefix), message.Reference())
 		return
 	}
 	// Validate duration
@@ -42,7 +42,7 @@ func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, qu
 	if err != nil {
 		log.Printf("[discord][HandleRemindMe] Failed to parse duration '%s' for %s: %s", query, message.Author.String(), err.Error())
 		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
-		_, err = bot.ChannelMessageSendReply(message.ChannelID, "Invalid duration format. Try something like `45m`, `1h30m`, or `13h`.", message.Reference())
+		_, err = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("Invalid duration format: ```%s```\n:information_source: _Try something like `45m`, `1h30m`, or `13h`._", err.Error()), message.Reference())
 		if err != nil {
 			log.Printf("[discord][HandleRemindMe] Failed to reply to message: %s", err.Error())
 		}
