@@ -8,6 +8,7 @@ import (
 	"github.com/TwinProduction/discord-reminder-bot/config"
 	"github.com/TwinProduction/discord-reminder-bot/core"
 	"github.com/TwinProduction/discord-reminder-bot/database"
+	"github.com/TwinProduction/discord-reminder-bot/format"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -81,6 +82,8 @@ func updateExistingMessage(bot *discordgo.Session, channelID, messageID, title, 
 	return message, nil
 }
 
+// TODO: r!remindme DURATION [daily|weekly|monthly]
+
 func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageID, note string, when time.Time) (*core.Reminder, error) {
 	if len(note) > MaximumNoteLength {
 		return nil, fmt.Errorf("note exceeded maximum length of %d", MaximumNoteLength)
@@ -133,7 +136,7 @@ func createReminderListMessageEmbed(notificationMessageChannelID, userID string,
 	var fields []*discordgo.MessageEmbedField
 	for _, reminder := range reminders {
 		fields = append(fields, &discordgo.MessageEmbedField{
-			Name:  fmt.Sprintf("%d: In %s from now", reminder.ID, time.Until(reminder.Time).Round(time.Second).String()),
+			Name:  fmt.Sprintf("In %s from now", format.PrettyDuration(time.Until(reminder.Time))),
 			Value: reminder.GenerateReminderMessageContentInList(notificationMessageChannelID),
 		})
 	}

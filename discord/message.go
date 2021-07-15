@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TwinProduction/discord-reminder-bot/format"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -38,11 +39,11 @@ func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, qu
 	}
 	// Validate duration
 	durationArgument := strings.Split(query, " ")[0]
-	duration, err := time.ParseDuration(durationArgument)
+	duration, err := format.ParseDuration(durationArgument)
 	if err != nil {
 		log.Printf("[discord][HandleRemindMe] Failed to parse duration '%s' for %s: %s", query, message.Author.String(), err.Error())
 		_ = bot.MessageReactionAdd(message.ChannelID, message.ID, EmojiError)
-		_, err = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("Invalid duration format: ```%s```\n:information_source: _Try something like `45m`, `1h30m`, or `13h`._", err.Error()), message.Reference())
+		_, err = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("Invalid duration format: ```%s```\n:information_source: _Try something like `45m`, `5h30m`, or `7d`._", err.Error()), message.Reference())
 		if err != nil {
 			log.Printf("[discord][HandleRemindMe] Failed to reply to message: %s", err.Error())
 		}
