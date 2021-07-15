@@ -89,7 +89,7 @@ func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageI
 		return nil, fmt.Errorf("note exceeded maximum length of %d", MaximumNoteLength)
 	}
 	numberOfReminders, _ := database.CountRemindersByUserID(userID)
-	if numberOfReminders > MaximumNumberOfRemindersPerUser {
+	if numberOfReminders >= MaximumNumberOfRemindersPerUser {
 		return nil, fmt.Errorf("you have reached the maximum number of reminders a single user can have (%d)", MaximumNumberOfRemindersPerUser)
 	}
 	if len(guildID) == 0 {
@@ -147,7 +147,10 @@ func createReminderListMessageEmbed(notificationMessageChannelID, userID string,
 		description = "Below is a list of all reminders on page " + strconv.Itoa(page)
 	}
 	numberOfReminders, _ := database.CountRemindersByUserID(userID)
-	numberOfPages := (numberOfReminders / ReminderListPageSize) + 1
+	numberOfPages := numberOfReminders / ReminderListPageSize
+	if numberOfPages == 0 || numberOfReminders%ReminderListPageSize != 0 {
+		numberOfPages += 1
+	}
 	embed := generateMessageEmbed("List of Reminders", description, 0x20B020)
 	embed.Fields = fields
 	embed.Footer = &discordgo.MessageEmbedFooter{
