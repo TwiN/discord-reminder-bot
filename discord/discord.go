@@ -34,10 +34,10 @@ const (
 
 const (
 	MaximumNoteLength               = 240
-	MaximumNumberOfRemindersPerUser = 50
+	MaximumNumberOfRemindersPerUser = 35
 
 	MinimumReminderDuration = time.Minute
-	MaximumReminderDuration = 180 * 24 * time.Hour
+	MaximumReminderDuration = 1825 * 24 * time.Hour
 
 	ReminderListPageSize = 7
 )
