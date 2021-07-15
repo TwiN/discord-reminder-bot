@@ -55,93 +55,85 @@ func TestPrettyDuration(t *testing.T) {
 
 func TestParseDuration(t *testing.T) {
 	type Scenario struct {
-		Name           string
 		Input          string
 		ExpectedOutput time.Duration
 		ExpectedErr    error
 	}
 	scenarios := []Scenario{
 		{
-			Name:           "days",
 			Input:          "1d",
 			ExpectedOutput: 24 * time.Hour,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "hours",
+			Input:          "50d",
+			ExpectedOutput: 1200 * time.Hour,
+			ExpectedErr:    nil,
+		},
+		{
 			Input:          "1h",
 			ExpectedOutput: time.Hour,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "hours-long",
 			Input:          "1hr",
 			ExpectedOutput: time.Hour,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "hours-longer",
 			Input:          "1hour",
 			ExpectedOutput: time.Hour,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "minutes",
 			Input:          "5m",
 			ExpectedOutput: 5 * time.Minute,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "minutes-long",
 			Input:          "5min",
 			ExpectedOutput: 5 * time.Minute,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "minutes-long-plural",
 			Input:          "5mins",
 			ExpectedOutput: 5 * time.Minute,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "minutes-longer",
 			Input:          "5minute",
 			ExpectedOutput: 5 * time.Minute,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "minutes-longer-plural",
 			Input:          "5minutes",
 			ExpectedOutput: 5 * time.Minute,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "days-hours",
 			Input:          "2d1h",
 			ExpectedOutput: 49 * time.Hour,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "hours-minutes-seconds",
 			Input:          "3h2m1s",
 			ExpectedOutput: 3*time.Hour + 2*time.Minute + 1*time.Second,
 			ExpectedErr:    nil,
 		},
 		{
-			Name:           "days-hours-minutes-seconds",
 			Input:          "4d3h2m1s",
 			ExpectedOutput: 99*time.Hour + 2*time.Minute + 1*time.Second,
 			ExpectedErr:    nil,
 		},
 	}
 	for _, scenario := range scenarios {
-		t.Run(scenario.Name, func(t *testing.T) {
+		t.Run(scenario.Input, func(t *testing.T) {
 			output, err := ParseDuration(scenario.Input)
 			if err != scenario.ExpectedErr {
-				t.Errorf("[%s] expected error to be %v, got %v", scenario.Name, scenario.ExpectedErr, err)
+				t.Errorf("[%s] expected error to be %v, got %v", scenario.Input, scenario.ExpectedErr, err)
 			}
 			if output != scenario.ExpectedOutput {
-				t.Errorf("[%s] expected output to be %v, got %v", scenario.Name, scenario.ExpectedOutput, output)
+				t.Errorf("[%s] expected output to be %v, got %v", scenario.Input, scenario.ExpectedOutput, output)
 			}
 		})
 	}

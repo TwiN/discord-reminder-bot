@@ -83,7 +83,7 @@ func ParseDuration(s string) (time.Duration, error) {
 		if strings.Contains(s, "d") {
 			numberStart, numberEnd := -1, -1
 			for i := range s {
-				if s[i] > '0' && s[i] < '9' {
+				if s[i] >= '0' && s[i] <= '9' {
 					if numberStart == -1 {
 						numberStart = i
 					}
@@ -96,19 +96,15 @@ func ParseDuration(s string) (time.Duration, error) {
 					}
 				}
 			}
-			var numberOfDays int
 			if numberStart > -1 && numberEnd >= numberStart {
-				numberOfDays, err = strconv.Atoi(s[numberStart:numberEnd])
-				if err != nil {
-					panic(err)
+				numberOfDays, _ := strconv.Atoi(s[numberStart:numberEnd])
+				carryOver = time.Duration(numberOfDays) * 24 * time.Hour
+				s = s[:numberStart] + s[numberEnd+1:]
+				// If the only duration in s was a number of days, we'll return the carryover right now, otherwise
+				// time.ParseDuration(s) will fail because s == ""
+				if len(s) == 0 {
+					return carryOver, nil
 				}
-			}
-			carryOver = time.Duration(numberOfDays) * 24 * time.Hour
-			s = s[:numberStart] + s[numberEnd+1:]
-			// If the only duration in s was a number of days, we'll return the carryover right now, otherwise
-			// time.ParseDuration(s) will fail because s == ""
-			if len(s) == 0 {
-				return carryOver, nil
 			}
 		}
 	}
