@@ -4,15 +4,15 @@
 
 This is a simple Discord bot for managing reminders.
 
-If you react to a message with ⏰ (`:alarm_clock:`), ⏲ (`:timer:`) or 🎗 (`:reminder_ribbon:`), a message will be sent to you through direct message informing you
-that you will be reminded about the message you reacted to in 8 hours.
+If you react to a message with ⏰ (`:alarm_clock:`), ⏲ (`:timer:`) or 🎗 (`:reminder_ribbon:`), a message will be sent 
+to you through direct message informing you that you will be reminded about the message you reacted to in 8 hours.
 
 You may also use the following syntax:
 ```
 !RemindMe <DURATION> [NOTE]
 ```
 **Where:**
-- `<DURATION>` must be use one of the following formats: `30m`, `6h30m`, `48h`
+- `<DURATION>` must be use one of the following formats: `30m`, `2h`, `6h30m`, `30d`, `7d12h30m`
 - `[NOTE]` is an optional note to attach to the reminder with less than 240 characters
 
 Note that `!RemindMe` can be replaced by directly pinging the bot (e.g. `@reminder-bot 2h30m meeting about cookies`)
@@ -39,6 +39,8 @@ You may also list your active reminders by typing the following:
 ```
 !list
 ```
+
+![list of reminders](.github/assets/reminder-list.png)
 
 
 ## Usage
