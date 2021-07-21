@@ -281,6 +281,10 @@ type Type interface {
 	// with union type can only contain one member at a time.
 	IsAggregate() bool
 
+	// IsPacked reports whether type is packed. It panics if the type's
+	// Kind is valid but not Struct or Union.
+	IsPacked() bool
+
 	// IsIncomplete reports whether type is incomplete.
 	IsIncomplete() bool
 
@@ -440,14 +444,15 @@ type Field interface {
 	BitFieldOffset() int
 	BitFieldWidth() int
 	Declarator() *StructDeclarator
+	InUnion() bool // Directly or indirectly
 	Index() int
 	IsBitField() bool
 	IsFlexible() bool // https://en.wikipedia.org/wiki/Flexible_array_member
-	InUnion() bool    // Directly or indirectly
 	Mask() uint64
 	Name() StringID  // Can be zero.
 	Offset() uintptr // In bytes from the beginning of the struct/union.
-	Padding() int
+	Padding() int    // In bytes after the field. N/A for bit fields, fields preceding bit fields or union fields.
+	Parent() Type    // The struct/union type that contains the field.
 	Promote() Type
 	Type() Type // Field type.
 }
@@ -564,7 +569,7 @@ const (
 	fTypedef
 )
 
-type flag uint8
+type flag uint16
 
 const (
 	// function specifier
@@ -580,6 +585,8 @@ const (
 	// other
 	fIncomplete
 	fSigned // Valid only for integer types.
+	fPacked
+	fAligned // __attribute__((aligned(n))) applied.
 )
 
 type typeBase struct {
@@ -734,6 +741,11 @@ func (t *typeBase) check(ctx *context, td typeDescriptor, defaultInt bool) (r Ty
 		}
 	}
 	return typ
+}
+
+func (t *typeBase) setAligned(n int) {
+	t.flags |= fAligned
+	t.align = byte(n)
 }
 
 // IsAssingmentCompatible implements Type.
@@ -907,6 +919,11 @@ func (t *typeBase) IsCompatibleLayout(u Type) bool {
 	}
 
 	return t.IsIntegerType() && u.Kind() == Enum && t.Size() == u.Size()
+}
+
+// IsPacked implements Type.
+func (t *typeBase) IsPacked() bool {
+	return t.flags&fPacked != 0
 }
 
 // UnionCommon implements Type.
@@ -1811,6 +1828,15 @@ func (t *aliasType) IsCompatibleLayout(u Type) bool {
 	return t.d.Type().IsCompatibleLayout(u)
 }
 
+// IsPacked implements Type.
+func (t *aliasType) IsPacked() bool {
+	if t == nil {
+		return false
+	}
+
+	return t.d.Type().IsPacked()
+}
+
 // UnionCommon implements Type.
 func (t *aliasType) UnionCommon() Kind { return t.d.Type().UnionCommon() }
 
@@ -1984,6 +2010,7 @@ type field struct {
 	blockStart   *field // First bit field of the block this bit field belongs to.
 	d            *StructDeclarator
 	offset       uintptr // In bytes from start of the struct.
+	parent       Type
 	promote      Type
 	typ          Type
 
@@ -2014,6 +2041,7 @@ func (f *field) Mask() uint64                  { return f.bitFieldMask }
 func (f *field) Name() StringID                { return f.name }
 func (f *field) Offset() uintptr               { return f.offset }
 func (f *field) Padding() int                  { return int(f.pad) } // N/A for bitfields
+func (f *field) Parent() Type                  { return f.parent }
 func (f *field) Promote() Type                 { return f.promote }
 func (f *field) Type() Type                    { return f.typ }
 func (f *field) at(offDelta uintptr) *field    { r := *f; r.offset += offDelta; return &r }
@@ -2254,6 +2282,7 @@ func (t *structType) check(ctx *context, n Node) *structType {
 
 	// Reject ambiguous names.
 	for _, f := range t.fields {
+		f.parent = t
 		if f.Name() != 0 {
 			continue
 		}
@@ -2424,6 +2453,15 @@ type taggedType struct {
 	typ             Type
 
 	tag StringID
+}
+
+// IsPacked implements Type.
+func (t *taggedType) IsPacked() bool {
+	if t == nil {
+		return false
+	}
+
+	return t.underlyingType().IsPacked()
 }
 
 // HasFlexibleMember implements Type.
@@ -2624,6 +2662,11 @@ func (t *taggedType) FieldByIndex(i []int) Field { return t.underlyingType().Fie
 // FieldByName implements Type.
 func (t *taggedType) FieldByName(s StringID) (Field, bool) { return t.underlyingType().FieldByName(s) }
 
+// FieldByName2 implements Type.
+func (t *taggedType) FieldByName2(s StringID) (Field, []int, bool) {
+	return t.underlyingType().FieldByName2(s)
+}
+
 // IsSignedType implements Type.
 func (t *taggedType) IsSignedType() bool { return t.underlyingType().IsSignedType() }
 
@@ -2646,7 +2689,8 @@ func (t *taggedType) underlyingType() Type {
 	for s := t.resolutionScope; s != nil; s = s.Parent() {
 		for _, v := range s[t.tag] {
 			switch x := v.(type) {
-			case *Declarator, *StructDeclarator:
+			case *Declarator, *StructDeclarator, *LabeledStatement:
+				// nop
 			case *EnumSpecifier:
 				if k == Enum && x.Case == EnumSpecifierDef {
 					t.typ = x.Type()
@@ -2670,7 +2714,7 @@ func (t *taggedType) underlyingType() Type {
 					}
 				}
 			default:
-				panic(internalError())
+				panic(todo("internal error: %T", x))
 			}
 		}
 	}
@@ -3174,7 +3218,7 @@ func (x *StructLayout) String() string {
 		f := t.FieldByIndex([]int{i})
 		var bf StringID
 		if f.IsBitField() {
-			if bfbf := f.BitFieldBlockFirst(); bfbf != nil {
+			if bfbf := f.(*field).blockStart; bfbf != nil {
 				bf = bfbf.Name()
 			}
 		}

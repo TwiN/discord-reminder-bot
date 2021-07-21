@@ -1056,7 +1056,8 @@ func (n *CastExpression) Declarator() *Declarator {
 	}
 }
 
-func (n *AttributeSpecifier) has(key ...StringID) (*ExpressionList, bool) {
+// Has reports whether n has any of attributes in key.
+func (n *AttributeSpecifier) Has(key ...StringID) (*ExpressionList, bool) {
 	if n == nil {
 		return nil, false
 	}
@@ -1077,9 +1078,10 @@ func (n *AttributeSpecifier) has(key ...StringID) (*ExpressionList, bool) {
 	return nil, false
 }
 
-func (n *AttributeSpecifierList) has(key ...StringID) (*ExpressionList, bool) {
+// Has reports whether n has any of attributes in key.
+func (n *AttributeSpecifierList) Has(key ...StringID) (*ExpressionList, bool) {
 	for ; n != nil; n = n.AttributeSpecifierList {
-		if exprList, ok := n.AttributeSpecifier.has(key...); ok {
+		if exprList, ok := n.AttributeSpecifier.Has(key...); ok {
 			return exprList, ok
 		}
 	}

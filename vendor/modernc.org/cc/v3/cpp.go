@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"modernc.org/token"
@@ -28,6 +29,7 @@ var (
 
 	idCOUNTER                  = dict.sid("__COUNTER__")
 	idCxLimitedRange           = dict.sid("CX_LIMITED_RANGE")
+	idDATE                     = dict.sid("__DATE__")
 	idDefault                  = dict.sid("DEFAULT")
 	idDefined                  = dict.sid("defined")
 	idEmptyString              = dict.sid(`""`)
@@ -46,6 +48,7 @@ var (
 	idOne                      = dict.sid("1")
 	idPragmaSTDC               = dict.sid("__pragma_stdc")
 	idSTDC                     = dict.sid("STDC")
+	idTIME                     = dict.sid("__TIME__")
 	idTclDefaultDoubleRounding = dict.sid("TCL_DEFAULT_DOUBLE_ROUNDING")
 	idTclIeeeDoubleRounding    = dict.sid("TCL_IEEE_DOUBLE_ROUNDING")
 	idVaArgs                   = dict.sid("__VA_ARGS__")
@@ -54,7 +57,6 @@ var (
 	cppTokensPool = sync.Pool{New: func() interface{} { r := []cppToken{}; return &r }}
 
 	protectedMacros = hideSet{ // [0], 6.10.8, 4
-		dict.sid("__DATE__"):                 {},
 		dict.sid("__STDC_HOSTED__"):          {},
 		dict.sid("__STDC_IEC_559_COMPLEX__"): {},
 		dict.sid("__STDC_IEC_559__"):         {},
@@ -62,10 +64,11 @@ var (
 		dict.sid("__STDC_MB_MIGHT_NEQ_WC__"): {},
 		dict.sid("__STDC_VERSION__"):         {},
 		dict.sid("__STDC__"):                 {},
-		dict.sid("__TIME__"):                 {},
 		idCOUNTER:                            {},
+		idDATE:                               {},
 		idFILE:                               {},
 		idLINE:                               {},
+		idTIME:                               {},
 	}
 )
 
@@ -272,6 +275,7 @@ type cpp struct {
 	counter      int
 	counterMacro Macro
 	ctx          *context
+	dateMacro    Macro
 	file         *tokenFile
 	fileMacro    Macro
 	in           chan []token3
@@ -283,6 +287,7 @@ type cpp struct {
 	out          chan *[]token4
 	outBuf       *[]token4
 	rq           chan struct{}
+	timeMacro    Macro
 	ungetBuf
 
 	last rune
@@ -302,13 +307,27 @@ func newCPP(ctx *context) *cpp {
 		outBuf:     b,
 	}
 	r.counterMacro = Macro{repl: []token3{{char: PPNUMBER}}}
+	r.dateMacro = Macro{repl: []token3{{char: STRINGLITERAL}}}
+	r.timeMacro = Macro{repl: []token3{{char: STRINGLITERAL}}}
 	r.fileMacro = Macro{repl: []token3{{char: STRINGLITERAL}}}
 	r.lineMacro = Macro{repl: []token3{{char: PPNUMBER}}}
 	r.macros = map[StringID]*Macro{
 		idCOUNTER: &r.counterMacro,
+		idDATE:    &r.dateMacro,
 		idFILE:    &r.fileMacro,
 		idLINE:    &r.lineMacro,
+		idTIME:    &r.timeMacro,
 	}
+	t := time.Now()
+	// This macro expands to a string constant that describes the date on which the
+	// preprocessor is being run. The string constant contains eleven characters
+	// and looks like "Feb 12 1996". If the day of the month is less than 10, it is
+	// padded with a space on the left.
+	r.dateMacro.repl[0].value = dict.sid(t.Format("\"Jan _2 2006\""))
+	// This macro expands to a string constant that describes the time at which the
+	// preprocessor is being run. The string constant contains eight characters and
+	// looks like "23:59:01".
+	r.timeMacro.repl[0].value = dict.sid(t.Format("\"15:04:05\""))
 	return r
 }
 
@@ -1250,7 +1269,7 @@ func (c *cpp) eval(expr []token3) interface{} {
 	}
 	toks = toks[:p]
 	s := cppScanner(toks)
-	val := c.conditionalExpression(&s, true)
+	val := c.expression(&s, true)
 	switch s.peek().char {
 	case -1, '#':
 		// ok
@@ -1260,6 +1279,34 @@ func (c *cpp) eval(expr []token3) interface{} {
 		return nil
 	}
 	return val
+}
+
+// [0], 6.5.17 Comma operator
+//
+//  expression:
+// 	assignment-expression
+// 	expression , assignment-expression
+func (c *cpp) expression(s *cppScanner, eval bool) interface{} {
+	for {
+		r := c.assignmentExpression(s, eval)
+		if s.peek().char != ',' {
+			return r
+		}
+
+		s.next()
+	}
+}
+
+// [0], 6.5.16 Assignment operators
+//
+//  assignment-expression:
+// 	conditional-expression
+// 	unary-expression assignment-operator assignment-expression
+//
+//  assignment-operator: one of
+// 	= *= /= %= += -= <<= >>= &= ^= |=
+func (c *cpp) assignmentExpression(s *cppScanner, eval bool) interface{} {
+	return c.conditionalExpression(s, eval)
 }
 
 // [0], 6.5.15 Conditional operator
@@ -1280,6 +1327,20 @@ func (c *cpp) conditionalExpression(s *cppScanner, eval bool) interface{} {
 
 		s.next()
 		expr3 := c.conditionalExpression(s, !exprIsNonZero)
+
+		// [0] 6.5.15
+		//
+		// 5. If both the second and third operands have arithmetic type, the result
+		// type that would be determined by the usual arithmetic conversions, were they
+		// applied to those two operands, is the type of the result.
+		x := c.operand(expr2)
+		y := c.operand(expr3)
+		if x != nil && y != nil {
+			x, y = usualArithmeticConversions(c.ctx, nil, x, y, false)
+			expr2 = c.fromOperand(x)
+			expr3 = c.fromOperand(y)
+		}
+
 		switch {
 		case exprIsNonZero:
 			expr = expr2
@@ -1288,6 +1349,28 @@ func (c *cpp) conditionalExpression(s *cppScanner, eval bool) interface{} {
 		}
 	}
 	return expr
+}
+
+func (c *cpp) operand(v interface{}) Operand {
+	switch x := v.(type) {
+	case int64:
+		return &operand{typ: &typeBase{size: 8, kind: byte(LongLong), flags: fSigned}, value: Int64Value(x)}
+	case uint64:
+		return &operand{typ: &typeBase{size: 8, kind: byte(ULongLong)}, value: Uint64Value(x)}
+	default:
+		return nil
+	}
+}
+
+func (c *cpp) fromOperand(op Operand) interface{} {
+	switch x := op.Value().(type) {
+	case Int64Value:
+		return int64(x)
+	case Uint64Value:
+		return uint64(x)
+	default:
+		return nil
+	}
 }
 
 // [0], 6.5.14 Logical OR operator
@@ -1948,7 +2031,7 @@ func (c *cpp) primaryExpression(s *cppScanner, eval bool) interface{} {
 		return c.intConst(tok)
 	case '(':
 		s.next()
-		expr := c.conditionalExpression(s, eval)
+		expr := c.expression(s, eval)
 		if s.peek().char == ')' {
 			s.next()
 		}
@@ -2691,6 +2774,7 @@ func (n *ppLineDirective) translationPhase4(c *cpp) {
 			s := t.String()
 			s = s[1 : len(s)-1]
 			c.file.AddLineInfo(int(n.toks[len(n.toks)-1].pos), s, int(ln))
+			c.fileMacro.repl[0].value = t.value
 			for len(toks) != 0 && toks[0].char == ' ' {
 				toks = toks[1:]
 			}

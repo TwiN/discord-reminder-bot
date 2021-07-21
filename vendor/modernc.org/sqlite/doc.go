@@ -15,6 +15,10 @@
 //
 // Changelog
 //
+// 2021-06-23 v1.11.0:
+//
+// Upgrade to use sqlite 3.36.0, release notes at https://www.sqlite.org/releaselog/3_36_0.html.
+//
 // 2021-05-06 v1.10.6:
 //
 // Fixes a memory corruption issue
@@ -125,11 +129,15 @@
 // 	linux	amd64
 // 	linux	arm
 // 	linux	arm64
+// 	windows	amd64
+//
+// The windows/amd64 has currently experimental/preview status. Tcl tests
+// report an unresolved yet memory leak, see
+// https://gitlab.com/cznic/sqlite/-/issues/23 for more details.
 //
 // Planned platforms and architectures
 //
 // 	windows	386
-// 	windows	amd64
 //
 // Debug and development versions
 //

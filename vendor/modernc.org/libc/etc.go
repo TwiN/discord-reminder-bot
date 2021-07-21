@@ -79,7 +79,7 @@ func trc(s string, args ...interface{}) string { //TODO-
 	default:
 		s = fmt.Sprintf(s, args...)
 	}
-	r := fmt.Sprintf("\n%s: TRC %s", origin(2), s)
+	r := fmt.Sprintf("%s: TRC %s", origin(2), s)
 	fmt.Fprintf(os.Stdout, "%s\n", r)
 	os.Stdout.Sync()
 	return r
@@ -429,7 +429,7 @@ func VaList(p uintptr, args ...interface{}) (r uintptr) {
 		case float64:
 			*(*float64)(unsafe.Pointer(p)) = x
 		case uintptr:
-			*(*uint64)(unsafe.Pointer(p)) = uint64(x)
+			*(*uintptr)(unsafe.Pointer(p)) = x
 		default:
 			panic(todo("invalid VaList argument type: %T", x))
 		}
@@ -445,7 +445,7 @@ func VaInt32(app *uintptr) int32 {
 	}
 
 	ap = roundup(ap, 8)
-	v := *(*int32)(unsafe.Pointer(ap))
+	v := int32(*(*int64)(unsafe.Pointer(ap)))
 	ap += 8
 	*(*uintptr)(unsafe.Pointer(app)) = ap
 	return v
@@ -458,7 +458,7 @@ func VaUint32(app *uintptr) uint32 {
 	}
 
 	ap = roundup(ap, 8)
-	v := *(*uint32)(unsafe.Pointer(ap))
+	v := uint32(*(*uint64)(unsafe.Pointer(ap)))
 	ap += 8
 	*(*uintptr)(unsafe.Pointer(app)) = ap
 	return v

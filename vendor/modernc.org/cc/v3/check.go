@@ -110,7 +110,7 @@ func (n *FunctionDefinition) checkBody(ctx *context) {
 	}
 
 	n.checked = true
-	if n.Declarator.isExternInline() {
+	if n.Declarator.isExternInline() && !ctx.cfg.CheckExternInlineFnBodies {
 		return
 	}
 
@@ -200,7 +200,7 @@ func (n *AsmStatement) check(ctx *context) {
 	}
 
 	n.Asm.check(ctx)
-	n.AttributeSpecifierList.check(ctx)
+	n.AttributeSpecifierList.check(ctx, nil)
 }
 
 func (n *Declaration) check(ctx *context, tld bool) {
@@ -214,7 +214,7 @@ func (n *Declaration) check(ctx *context, tld bool) {
 
 func (n *InitDeclaratorList) check(ctx *context, td typeDescriptor, typ Type, tld bool) {
 	for ; n != nil; n = n.InitDeclaratorList {
-		n.AttributeSpecifierList.check(ctx)
+		n.AttributeSpecifierList.check(ctx, typ.baseP())
 		n.InitDeclarator.check(ctx, td, typ, tld)
 	}
 }
@@ -227,7 +227,7 @@ func (n *InitDeclarator) check(ctx *context, td typeDescriptor, typ Type, tld bo
 	if f := ctx.checkFn; f != nil {
 		f.InitDeclarators = append(f.InitDeclarators, n)
 	}
-	if attr := n.AttributeSpecifierList.check(ctx); len(attr) != 0 {
+	if attr := n.AttributeSpecifierList.check(ctx, typ.baseP()); len(attr) != 0 {
 		typ = &attributedType{typ, attr}
 	}
 	switch n.Case {
@@ -237,7 +237,8 @@ func (n *InitDeclarator) check(ctx *context, td typeDescriptor, typ Type, tld bo
 		typ := n.Declarator.check(ctx, td, typ, tld)
 		n.Declarator.hasInitializer = true
 		n.Declarator.Write++
-		n.Initializer.check(ctx, &n.Initializer.list, typ, n.Declarator.StorageClass, nil, 0, nil)
+		n.Initializer.check(ctx, &n.Initializer.list, typ, n.Declarator.StorageClass, nil, 0, nil, nil)
+		n.Initializer.setConstZero()
 		n.initializer = &InitializerValue{typ: typ, initializer: n.Initializer}
 		if ctx.cfg.TrackAssignments {
 			setLHS(map[*Declarator]struct{}{n.Declarator: {}}, n.Initializer)
@@ -247,18 +248,51 @@ func (n *InitDeclarator) check(ctx *context, td typeDescriptor, typ Type, tld bo
 	}
 }
 
-// [0], 6.7.8 Initialization
-func (n *Initializer) check(ctx *context, list *[]*Initializer, t Type, sc StorageClass, fld Field, off uintptr, il **InitializerList) {
+func (n *Initializer) setConstZero() {
+	switch n.Case {
+	case InitializerExpr: // AssignmentExpression
+		if op := n.AssignmentExpression.Operand; op != nil {
+			n.isConst = op.IsConst()
+			n.isZero = op.IsZero()
+		}
+	case InitializerInitList: // '{' InitializerList ',' '}'
+		li := n.InitializerList
+		li.setConstZero()
+		n.isConst = li.IsConst()
+		n.isZero = li.IsZero()
+	default:
+		panic(todo("%v:", n.Position()))
+	}
+}
+
+func (n *InitializerList) setConstZero() {
 	if n == nil {
 		return
 	}
 
+	n0 := n
+	n0.isConst = true
+	n0.isZero = true
+	for ; n != nil; n = n.InitializerList {
+		in := n.Initializer
+		in.setConstZero()
+		n0.isConst = n0.isConst && in.isConst
+		n0.isZero = n0.isZero && in.isZero
+	}
+}
+
+// [0], 6.7.8 Initialization
+func (n *Initializer) check(ctx *context, list *[]*Initializer, t Type, sc StorageClass, fld Field, off uintptr, il *InitializerList, designatorList *DesignatorList) *InitializerList {
 	// 3 - The type of the entity to be initialized shall be an array of
 	// unknown size or an object type that is not a variable length array
 	// type.
 	if t.Kind() == Array && t.IsVLA() {
 		ctx.errNode(n, "cannot initialize a variable length array: %v", t)
-		return
+		if il != nil {
+			return il.InitializerList
+		}
+
+		return nil
 	}
 
 	defer func(d int) { ctx.readDelta = d }(ctx.readDelta)
@@ -280,23 +314,23 @@ func (n *Initializer) check(ctx *context, list *[]*Initializer, t Type, sc Stora
 	// for simple assignment apply, taking the type of the scalar to be the
 	// unqualified version of its declared type.
 	if t.IsScalarType() && single != nil {
+		if designatorList != nil {
+			panic(todo("", n.Position()))
+		}
+
 		//TODO check compatible
 		*list = append(*list, single)
-		switch {
-		case op == nil || op.Value() == nil:
-			n.isConst = false
-			n.isZero = false
-		default:
-			n.isConst = op.isConst()
-			n.isZero = op.IsZero()
-		}
 		switch {
 		case t.Kind() == op.Type().Kind():
 			single.AssignmentExpression.InitializerOperand = op
 		default:
 			single.AssignmentExpression.InitializerOperand = op.convertTo(ctx, n, t)
 		}
-		return
+		if il != nil {
+			return il.InitializerList
+		}
+
+		return nil
 	}
 
 	// 12: The rest of this subclause deals with initializers for objects that have
@@ -310,10 +344,16 @@ func (n *Initializer) check(ctx *context, list *[]*Initializer, t Type, sc Stora
 	// latter case, the initial value of the object, including unnamed members, is
 	// that of the expression.
 	if n.Case == InitializerExpr && sc == Automatic && (k == Struct || k == Union || k == Vector) && t.IsCompatible(op.Type()) {
-		n.isConst = false
-		n.isZero = false
+		if designatorList != nil {
+			panic(todo("", n.Position()))
+		}
+
 		*list = append(*list, single)
-		return
+		if il != nil {
+			return il.InitializerList
+		}
+
+		return nil
 	}
 
 	if k == Array && single != nil {
@@ -326,14 +366,20 @@ func (n *Initializer) check(ctx *context, list *[]*Initializer, t Type, sc Stora
 			// is room or if the array is of unknown size) initialize the elements of the
 			// array.
 			if x, ok := op.Value().(StringValue); ok {
-				n.isConst = true
-				n.isZero = false
+				if designatorList != nil {
+					panic(todo("", n.Position()))
+				}
+
 				*list = append(*list, single)
 				str := StringID(x).String()
 				if t.IsIncomplete() {
 					t.setLen(uintptr(len(str)) + 1)
 				}
-				return
+				if il != nil {
+					return il.InitializerList
+				}
+
+				return nil
 			}
 		case isWCharType(et):
 			// 15: An array with element type compatible with wchar_t may be initialized by
@@ -342,14 +388,20 @@ func (n *Initializer) check(ctx *context, list *[]*Initializer, t Type, sc Stora
 			// character if there is room or if the array is of unknown size) initialize
 			// the elements of the array.
 			if x, ok := op.Value().(WideStringValue); ok {
-				n.isConst = true
-				n.isZero = false
+				if designatorList != nil {
+					panic(todo("", n.Position()))
+				}
+
 				*list = append(*list, single)
 				str := []rune(StringID(x).String())
 				if t.IsIncomplete() {
 					t.setLen(uintptr(len(str)) + 1)
 				}
-				return
+				if il != nil {
+					panic(todo(""))
+				}
+
+				return nil
 			}
 		}
 	}
@@ -359,8 +411,18 @@ func (n *Initializer) check(ctx *context, list *[]*Initializer, t Type, sc Stora
 	// named members.
 	if n.Case == InitializerExpr {
 		if il != nil {
-			*il = (*il).check(ctx, list, t, sc, off)
-			return
+			switch t.Kind() {
+			case Array:
+				return il.checkArray(ctx, list, t, sc, off, designatorList)
+			case Struct:
+				return il.checkStruct(ctx, list, t, sc, off, designatorList)
+			case Union:
+				return il.checkUnion(ctx, list, t, sc, off, designatorList)
+			case Vector:
+				return il.InitializerList //TODO
+			default:
+				panic(todo("", n.Position(), t, t.Kind()))
+			}
 		}
 
 		var l *InitializerList
@@ -381,51 +443,61 @@ func (n *Initializer) check(ctx *context, list *[]*Initializer, t Type, sc Stora
 			return true
 		})
 		if l != nil {
-			if l.check(ctx, list, t, sc, off) != nil {
-				panic(todo("%v: internal error: %v", n, t))
-			}
-
-			return
+			l.check(ctx, list, t, sc, off, designatorList)
+			return nil
 		}
 
 		ctx.errNode(n, "initializer for an object that has aggregate or union type shall be a brace-enclosed list of initializers for the elements or named members: %v", t)
-		return
-	}
-
-	n.InitializerList.check(ctx, list, t, sc, off)
-}
-
-func (n *InitializerList) checkArray(ctx *context, list *[]*Initializer, t Type, sc StorageClass, off uintptr) (r *InitializerList) {
-	if n == nil {
 		return nil
 	}
 
+	n.InitializerList.check(ctx, list, t, sc, off, designatorList)
+	if il != nil {
+		return il.InitializerList
+	}
+
+	return nil
+}
+
+func (n *InitializerList) checkArray(ctx *context, list *[]*Initializer, t Type, sc StorageClass, off uintptr, designatorList *DesignatorList) *InitializerList {
 	elem := t.Elem()
 	esz := elem.Size()
 	length := t.Len()
 	var i, maxI uintptr
-	n.isConst = true
-	n.isZero = true
-	n0 := n
 loop:
 	for n != nil {
-		n2 := n
 		switch {
-		case n.Designation != nil:
-			var t2 Type
-			var off2 uintptr
-			i, t2, off2 = n.Designation.checkArray(ctx, t)
-			if !t.IsIncomplete() && i >= length {
+		case designatorList == nil && n.Designation != nil:
+			designatorList = n.Designation.DesignatorList
+			fallthrough
+		case designatorList != nil:
+			d := designatorList.Designator
+			switch d.Case {
+			case DesignatorIndex: // '[' ConstantExpression ']'
+				switch x := d.ConstantExpression.check(ctx, ctx.mode|mIntConstExpr).Value().(type) {
+				case Int64Value:
+					i = uintptr(x)
+				case Uint64Value:
+					i = uintptr(x)
+				default:
+					panic(todo("%v: %T", n.Position(), x))
+				}
+			case DesignatorField: // '.' IDENTIFIER
+				panic(todo("", n.Position(), d.Position()))
+			case DesignatorField2: // IDENTIFIER ':'
+				panic(todo("", n.Position(), d.Position()))
+			default:
 				panic(todo(""))
 			}
 
-			if i > maxI {
-				maxI = i
+			designatorList = designatorList.DesignatorList
+			next := n.Initializer.check(ctx, list, elem, sc, nil, off+i*esz, n, designatorList)
+			if designatorList != nil {
+				panic(todo("", n.Position(), d.Position()))
 			}
-			n.Initializer.check(ctx, list, t2, sc, nil, off+off2, &n)
-			n0.isConst = n0.isConst && n2.Initializer.isConst
-			n0.isZero = n0.isZero && n2.Initializer.isZero
+
 			i++
+			n = next
 		default:
 			if !t.IsIncomplete() && i >= length {
 				break loop
@@ -434,13 +506,9 @@ loop:
 			if i > maxI {
 				maxI = i
 			}
-			n.Initializer.check(ctx, list, elem, sc, nil, off+i*esz, &n)
-			n0.isConst = n0.isConst && n2.Initializer.isConst
-			n0.isZero = n0.isZero && n2.Initializer.isZero
+			next := n.Initializer.check(ctx, list, elem, sc, nil, off+i*esz, n, nil)
 			i++
-		}
-		if n == n2 {
-			n = n.InitializerList
+			n = next
 		}
 	}
 	if t.IsIncomplete() {
@@ -449,61 +517,49 @@ loop:
 	return n
 }
 
-func (n *Designation) checkArray(ctx *context, t Type) (ix uintptr, elem Type, off uintptr) {
-	first := true
-	for n := n.DesignatorList; n != nil; n = n.DesignatorList {
-		d := n.Designator
-		switch d.Case {
-		case DesignatorIndex: // '[' ConstantExpression ']'
-			switch x := d.ConstantExpression.check(ctx, ctx.mode|mIntConstExpr).Value().(type) {
-			case Int64Value:
-				if first {
-					ix = uintptr(x)
-				}
-				elem = t.Elem()
-				off += ix * elem.Size()
-				t = elem
-			case Uint64Value:
-				if first {
-					ix = uintptr(x)
-				}
-				elem = t.Elem()
-				off += ix * elem.Size()
-				t = elem
-			default:
-				panic(todo("%v: %T", n.Position(), x))
-			}
-		default:
-			panic(todo(""))
-		}
-		first = false
-	}
-	return ix, elem, off
-}
-
-func (n *InitializerList) checkStruct(ctx *context, list *[]*Initializer, t Type, sc StorageClass, off uintptr) (r *InitializerList) {
-	if n == nil {
-		return nil
-	}
-
+func (n *InitializerList) checkStruct(ctx *context, list *[]*Initializer, t Type, sc StorageClass, off uintptr, designatorList *DesignatorList) *InitializerList {
+	t = t.underlyingType()
+	// trc("==== struct %v: %v, off %v", n.Position(), t, off) //TODO-
 	nf := t.NumField()
 	i := []int{0}
 	var f Field
-	// var off2 uintptr
-	n.isConst = true
-	n.isZero = true
-	n0 := n
 	for n != nil {
-		n2 := n
 		switch {
-		case n.Designation != nil:
-			off2, f0, f, ft := n.Designation.checkStruct(ctx, t)
-			i[0] = f0.Index()
-			n.Initializer.check(ctx, list, ft, sc, f, off+off2+f.Offset(), &n)
-			n.Initializer.field0 = f0
-			n0.isConst = n0.isConst && n2.Initializer.isConst
-			n0.isZero = n0.isZero && n2.Initializer.isZero
-			i[0]++
+		case designatorList == nil && n.Designation != nil:
+			designatorList = n.Designation.DesignatorList
+			fallthrough
+		case designatorList != nil:
+			d := designatorList.Designator
+			var nm StringID
+			switch d.Case {
+			case DesignatorIndex: // '[' ConstantExpression ']'
+				panic(todo("", n.Position(), d.Position()))
+			case DesignatorField: // '.' IDENTIFIER
+				nm = d.Token2.Value
+			case DesignatorField2: // IDENTIFIER ':'
+				nm = d.Token.Value
+			default:
+				panic(todo(""))
+			}
+
+			f, xa, ok := t.FieldByName2(nm)
+			if !ok {
+				panic(todo("%v: %q", d.Position(), nm))
+			}
+
+			switch {
+			case len(xa) != 1:
+				panic(todo("", d.Position()))
+			default:
+				designatorList = designatorList.DesignatorList
+				next := n.Initializer.check(ctx, list, f.Type(), sc, f, off+f.Offset(), n, designatorList)
+				if designatorList != nil && designatorList.DesignatorList != nil {
+					panic(todo("", d.Position()))
+				}
+
+				i[0] = xa[0] + 1
+				n = next
+			}
 		default:
 			// [0], 6.7.8 Initialization
 			//
@@ -519,16 +575,12 @@ func (n *InitializerList) checkStruct(ctx *context, list *[]*Initializer, t Type
 
 				f = t.FieldByIndex(i)
 				if f.Name() != 0 || !f.Type().IsBitFieldType() {
-					n.Initializer.check(ctx, list, f.Type(), sc, f, off+f.Offset(), &n)
-					n0.isConst = n0.isConst && n2.Initializer.isConst
-					n0.isZero = n0.isZero && n2.Initializer.isZero
+					next := n.Initializer.check(ctx, list, f.Type(), sc, f, off+f.Offset(), n, nil)
 					i[0]++
+					n = next
 					break
 				}
 			}
-		}
-		if n == n2 {
-			n = n.InitializerList
 		}
 	}
 	return n
@@ -540,32 +592,60 @@ func spos(n Node) string {
 	return p.String()
 }
 
-func (n *InitializerList) checkUnion(ctx *context, list *[]*Initializer, t Type, sc StorageClass, off uintptr) (r *InitializerList) {
-	if n == nil {
-		return nil
-	}
-
+func (n *InitializerList) checkUnion(ctx *context, list *[]*Initializer, t Type, sc StorageClass, off uintptr, designatorList *DesignatorList) *InitializerList {
+	t = t.underlyingType()
+	// trc("==== union %v: %v, off %v", n.Position(), t, off) //TODO-
 	nf := t.NumField()
 	i := []int{0}
-	// var off2 uintptr
-	n.isConst = true
-	n.isZero = true
-	n0 := n
-	first := true
 	for n != nil {
-		n2 := n
 		switch {
-		case n.Designation != nil:
-			if !first {
+		case designatorList == nil && n.Designation != nil:
+			designatorList = n.Designation.DesignatorList
+			fallthrough
+		case designatorList != nil:
+			d := designatorList.Designator
+			var nm StringID
+			switch d.Case {
+			case DesignatorIndex: // '[' ConstantExpression ']'
+				panic(todo("", n.Position(), d.Position()))
+			case DesignatorField: // '.' IDENTIFIER
+				nm = d.Token2.Value
+			case DesignatorField2: // IDENTIFIER ':'
+				nm = d.Token.Value
+			default:
 				panic(todo(""))
 			}
 
-			off2, f0, f, ft := n.Designation.checkStruct(ctx, t)
-			n.Initializer.check(ctx, list, ft, sc, f, off+off2+f.Offset(), &n)
-			n.Initializer.field0 = f0
-			n0.isConst = n0.isConst && n.Initializer.isConst
-			n0.isZero = n0.isZero && n.Initializer.isZero
-			i[0]++
+			f, xa, ok := t.FieldByName2(nm)
+			if !ok {
+				panic(todo("", d.Position()))
+			}
+
+			switch {
+			case len(xa) != 1:
+				var f2 Field
+				var off2 uintptr
+				for len(xa) != 1 {
+					f2 = t.FieldByIndex(xa[:1])
+					off2 += f2.Offset()
+					t = f2.Type()
+					xa = xa[1:]
+				}
+				next := n.Initializer.check(ctx, list, t, sc, f, off+off2+f.Offset(), n, designatorList)
+				if designatorList != nil && designatorList.DesignatorList != nil {
+					panic(todo("", n.Position(), d.Position()))
+				}
+
+				return next
+			default:
+				designatorList = designatorList.DesignatorList
+				next := n.Initializer.check(ctx, list, f.Type(), sc, f, off+f.Offset(), n, designatorList)
+				if designatorList != nil && designatorList.DesignatorList != nil {
+					panic(todo("", n.Position(), d.Position()))
+				}
+
+				return next
+			}
 		default:
 			// [0], 6.7.8 Initialization
 			//
@@ -574,9 +654,6 @@ func (n *InitializerList) checkUnion(ctx *context, list *[]*Initializer, t Type,
 			// structure and union type do not participate in
 			// initialization.  Unnamed members of structure objects have
 			// indeterminate value even after initialization.
-			if !first {
-				panic(todo(""))
-			}
 			for ; ; i[0]++ {
 				if i[0] >= nf {
 					panic(todo(""))
@@ -584,72 +661,14 @@ func (n *InitializerList) checkUnion(ctx *context, list *[]*Initializer, t Type,
 
 				f := t.FieldByIndex(i)
 				if f.Name() != 0 || !f.Type().IsBitFieldType() {
-					n.Initializer.check(ctx, list, f.Type(), sc, f, off+f.Offset(), &n)
-					n0.isConst = n0.isConst && n.Initializer.isConst
-					n0.isZero = n0.isZero && n.Initializer.isZero
-					i[0]++
-					break
+					next := n.Initializer.check(ctx, list, f.Type(), sc, f, off+f.Offset(), n, nil)
+					return next
 				}
 			}
-		}
-		first = false
-		if n == n2 {
-			n = n.InitializerList
+			panic(todo("", n.Position()))
 		}
 	}
-	return n
-}
-
-func (n *Designation) checkStruct(ctx *context, t Type) (off uintptr, rf0, rf Field, dt Type) {
-	index := false
-	dt = t
-	for n := n.DesignatorList; n != nil; n = n.DesignatorList {
-		if !index && rf != nil {
-			off += rf.Offset()
-		}
-		d := n.Designator
-		var nm StringID
-		switch d.Case {
-		case DesignatorIndex: // '[' ConstantExpression ']'
-			if dt.Kind() != Array {
-				panic(todo(""))
-			}
-
-			op := d.ConstantExpression.check(ctx, mIntConstExpr)
-			if op == nil || op == noOperand {
-				return 0, rf0, rf, dt
-			}
-
-			index = true
-			dt = dt.Elem()
-			switch x := op.Value().(type) {
-			case Int64Value:
-				off += uintptr(x) * dt.Size()
-			case Uint64Value:
-				off += uintptr(x) * dt.Size()
-			default:
-				panic(todo("%T", x))
-			}
-			continue
-		case DesignatorField: // '.' IDENTIFIER
-			nm = d.Token2.Value
-		case DesignatorField2: // IDENTIFIER ':'
-			nm = d.Token.Value
-		default:
-			panic(todo(""))
-		}
-		f, ok := dt.FieldByName(nm)
-		if !ok {
-			panic(todo("%v: %v: %q", n.Position(), t, nm))
-		}
-
-		rf = f
-		if rf0 == nil {
-			rf0 = rf
-		}
-		dt = f.Type()
-	}
-	return off, rf0, rf, dt
+	return nil
 }
 
 // Accept a single initializer, optionally enclosed in braces, but nested
@@ -663,7 +682,7 @@ func (n *Initializer) single() *Initializer {
 	case InitializerExpr: // AssignmentExpression
 		return n
 	case InitializerInitList: // '{' InitializerList ',' '}'
-		if n.InitializerList == nil {
+		if n.InitializerList == nil { //
 			return nil
 		}
 
@@ -677,36 +696,35 @@ func (n *Initializer) single() *Initializer {
 }
 
 // [0], 6.7.8 Initialization
-func (n *InitializerList) check(ctx *context, list *[]*Initializer, t Type, sc StorageClass, off uintptr) (r *InitializerList) {
+func (n *InitializerList) check(ctx *context, list *[]*Initializer, t Type, sc StorageClass, off uintptr, designatorList *DesignatorList) {
 	switch t.Kind() {
 	case Array, Vector:
-		if n == nil {
+		if n == nil { // {}
 			if t.IsIncomplete() {
 				t.setLen(0)
 			}
-			return nil
+			return
 		}
 
-		return n.checkArray(ctx, list, t, sc, off)
+		n.checkArray(ctx, list, t, sc, off, designatorList)
 	case Struct:
-		if n == nil {
-			return nil
+		if n == nil { // {}
+			return
 		}
 
-		return n.checkStruct(ctx, list, t, sc, off)
+		n.checkStruct(ctx, list, t, sc, off, designatorList)
 	case Union:
-		if n == nil {
-			return nil
+		if n == nil { // {}
+			return
 		}
 
-		return n.checkUnion(ctx, list, t, sc, off)
+		n.checkUnion(ctx, list, t, sc, off, designatorList)
 	default:
 		if n == nil || t == nil || t.Kind() == Invalid {
-			return nil
+			return
 		}
 
-		n.Initializer.check(ctx, list, t, sc, nil, off, &n)
-		return n
+		n.Initializer.check(ctx, list, t, sc, nil, off, nil, designatorList)
 	}
 }
 
@@ -812,7 +830,7 @@ func (n *AssignmentExpression) check(ctx *context) Operand {
 		r := n.AssignmentExpression.check(ctx)
 		//TODO check assignability
 		if l.Type().IsArithmeticType() {
-			op, _ := usualArithmeticConversions(ctx, n, l, r)
+			op, _ := usualArithmeticConversions(ctx, n, l, r, true)
 			n.promote = op.Type()
 		}
 		n.Operand = &operand{abi: &ctx.cfg.ABI, typ: l.Type()}
@@ -831,7 +849,7 @@ func (n *AssignmentExpression) check(ctx *context) Operand {
 		r := n.AssignmentExpression.check(ctx)
 		//TODO check assignability
 		if l.Type().IsArithmeticType() {
-			op, _ := usualArithmeticConversions(ctx, n, l, r)
+			op, _ := usualArithmeticConversions(ctx, n, l, r, true)
 			n.promote = op.Type()
 		}
 		n.Operand = &operand{abi: &ctx.cfg.ABI, typ: l.Type()}
@@ -850,7 +868,7 @@ func (n *AssignmentExpression) check(ctx *context) Operand {
 		r := n.AssignmentExpression.check(ctx)
 		//TODO check assignability
 		if l.Type().IsArithmeticType() {
-			op, _ := usualArithmeticConversions(ctx, n, l, r)
+			op, _ := usualArithmeticConversions(ctx, n, l, r, true)
 			n.promote = op.Type()
 		}
 		n.Operand = &operand{abi: &ctx.cfg.ABI, typ: l.Type()}
@@ -870,7 +888,7 @@ func (n *AssignmentExpression) check(ctx *context) Operand {
 		//TODO check assignability
 		n.promote = n.UnaryExpression.Operand.Type()
 		if l.Type().IsArithmeticType() {
-			op, _ := usualArithmeticConversions(ctx, n, l, r)
+			op, _ := usualArithmeticConversions(ctx, n, l, r, true)
 			n.promote = op.Type()
 		}
 		n.Operand = &operand{abi: &ctx.cfg.ABI, typ: l.Type()}
@@ -890,7 +908,7 @@ func (n *AssignmentExpression) check(ctx *context) Operand {
 		//TODO check assignability
 		n.promote = n.UnaryExpression.Operand.Type()
 		if l.Type().IsArithmeticType() {
-			op, _ := usualArithmeticConversions(ctx, n, l, r)
+			op, _ := usualArithmeticConversions(ctx, n, l, r, true)
 			n.promote = op.Type()
 		}
 		n.Operand = &operand{abi: &ctx.cfg.ABI, typ: l.Type()}
@@ -955,7 +973,7 @@ func (n *AssignmentExpression) check(ctx *context) Operand {
 			break
 		}
 
-		op, _ := usualArithmeticConversions(ctx, n, l, r)
+		op, _ := usualArithmeticConversions(ctx, n, l, r, true)
 		n.promote = op.Type()
 		n.Operand = &operand{abi: &ctx.cfg.ABI, typ: l.Type()}
 	case AssignmentExpressionXor: // UnaryExpression "^=" AssignmentExpression
@@ -977,7 +995,7 @@ func (n *AssignmentExpression) check(ctx *context) Operand {
 			break
 		}
 
-		op, _ := usualArithmeticConversions(ctx, n, l, r)
+		op, _ := usualArithmeticConversions(ctx, n, l, r, true)
 		n.promote = op.Type()
 		n.Operand = &operand{abi: &ctx.cfg.ABI, typ: l.Type()}
 	case AssignmentExpressionOr: // UnaryExpression "|=" AssignmentExpression
@@ -999,7 +1017,7 @@ func (n *AssignmentExpression) check(ctx *context) Operand {
 			break
 		}
 
-		op, _ := usualArithmeticConversions(ctx, n, l, r)
+		op, _ := usualArithmeticConversions(ctx, n, l, r, true)
 		n.promote = op.Type()
 		n.Operand = &operand{abi: &ctx.cfg.ABI, typ: l.Type()}
 	default:
@@ -1174,7 +1192,11 @@ func (n *UnaryExpression) check(ctx *context) Operand {
 			break
 		}
 
-		n.Operand = (&operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Type(ULongLong), value: Uint64Value(op.Type().Size())}).convertTo(ctx, n, sizeT(ctx, n.lexicalScope, n.Token))
+		sz := op.Type().Size()
+		if d := n.UnaryExpression.Declarator(); d != nil && d.IsParameter {
+			sz = op.Type().Decay().Size()
+		}
+		n.Operand = (&operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Type(ULongLong), value: Uint64Value(sz)}).convertTo(ctx, n, sizeT(ctx, n.lexicalScope, n.Token))
 	case UnaryExpressionSizeofType: // "sizeof" '(' TypeName ')'
 		n.IsSideEffectsFree = true
 		rd := ctx.readDelta
@@ -1183,7 +1205,7 @@ func (n *UnaryExpression) check(ctx *context) Operand {
 		if ctx.mode&mIntConstExpr != 0 {
 			ctx.mode |= mIntConstExprAnyCast
 		}
-		t := n.TypeName.check(ctx, false)
+		t := n.TypeName.check(ctx, false, false)
 		ctx.pop()
 		ctx.readDelta = rd
 		if t.IsIncomplete() {
@@ -1218,7 +1240,7 @@ func (n *UnaryExpression) check(ctx *context) Operand {
 		if ctx.mode&mIntConstExpr != 0 {
 			ctx.mode |= mIntConstExprAnyCast
 		}
-		t := n.TypeName.check(ctx, false)
+		t := n.TypeName.check(ctx, false, false)
 		n.Operand = (&operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Type(ULongLong), value: Uint64Value(t.Align())}).convertTo(ctx, n, sizeT(ctx, n.lexicalScope, n.Token))
 		ctx.pop()
 	case UnaryExpressionImag: // "__imag__" UnaryExpression
@@ -1442,7 +1464,7 @@ func (n *PostfixExpression) addrOf(ctx *context) Operand {
 
 		ot := ctx.cfg.ABI.Ptr(n, ft)
 		switch {
-		case op.isConst():
+		case op.IsConst():
 			switch x := op.Value().(type) {
 			case Uint64Value:
 				n.Operand = &operand{abi: &ctx.cfg.ABI, typ: ot, value: x + Uint64Value(f.Offset())}
@@ -1490,7 +1512,7 @@ func (n *PostfixExpression) addrOf(ctx *context) Operand {
 
 		ot := ctx.cfg.ABI.Ptr(n, ft)
 		switch {
-		case op.isConst():
+		case op.IsConst():
 			switch x := op.Value().(type) {
 			case Uint64Value:
 				n.Operand = &operand{abi: &ctx.cfg.ABI, typ: ot, value: x + Uint64Value(f.Offset())}
@@ -1514,14 +1536,13 @@ func (n *PostfixExpression) addrOf(ctx *context) Operand {
 		if f := ctx.checkFn; f != nil {
 			f.CompositeLiterals = append(f.CompositeLiterals, n)
 		}
-		t := n.TypeName.check(ctx, false)
+		t := n.TypeName.check(ctx, false, false)
 		var v *InitializerValue
 		if n.InitializerList != nil {
 			n.InitializerList.isConst = true
-			n.InitializerList.check(ctx, &n.InitializerList.list, t, Automatic, 0)
-			if n.InitializerList.IsConst() {
-				v = &InitializerValue{typ: ctx.cfg.ABI.Ptr(n, t), initializer: n.InitializerList}
-			}
+			n.InitializerList.check(ctx, &n.InitializerList.list, t, Automatic, 0, nil)
+			n.InitializerList.setConstZero()
+			v = &InitializerValue{typ: ctx.cfg.ABI.Ptr(n, t), initializer: n.InitializerList}
 		}
 		n.Operand = &lvalue{Operand: (&operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Ptr(n, t), value: v}).normalize(ctx, n)}
 	case PostfixExpressionTypeCmp: // "__builtin_types_compatible_p" '(' TypeName ',' TypeName ')'
@@ -1544,15 +1565,20 @@ func (n *PostfixExpression) indexAddr(ctx *context, nd Node, pe, e Operand) Oper
 		hasx = true
 	}
 	off := x * pe.Type().Elem().Size()
-	switch pe.Value().(type) {
+	switch y := pe.Value().(type) {
 	case StringValue, WideStringValue:
 		if hasx {
 			return &lvalue{Operand: &operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Ptr(n, pe.Type().Elem()), value: pe.Value(), offset: off}}
 		}
+	case Uint64Value:
+		if hasx {
+			return &lvalue{Operand: &operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Ptr(n, pe.Type().Elem()), value: y + Uint64Value(off)}}
+		}
 	}
 
 	if d := pe.Declarator(); d != nil && hasx {
-		return &lvalue{Operand: &operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Ptr(n, pe.Type().Elem()), offset: pe.Offset() + off}, declarator: d}
+		r := &lvalue{Operand: &operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Ptr(n, pe.Type().Elem()), offset: pe.Offset() + off}, declarator: d}
+		return r
 	}
 
 	return &lvalue{Operand: &operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Ptr(n, pe.Type().Elem())}}
@@ -1876,17 +1902,17 @@ func (n *MultiplicativeExpression) addrOf(ctx *context) Operand {
 	return n.Operand
 }
 
-func (n *TypeName) check(ctx *context, inUnion bool) Type {
+func (n *TypeName) check(ctx *context, inUnion, isPacked bool) Type {
 	if n == nil {
 		return noType
 	}
 
-	n.typ = n.SpecifierQualifierList.check(ctx, inUnion)
+	n.typ = n.SpecifierQualifierList.check(ctx, inUnion, isPacked)
 	if n.AbstractDeclarator != nil {
 		n.typ = n.AbstractDeclarator.check(ctx, n.typ)
 	}
 	for list := n.SpecifierQualifierList; list != nil; list = list.SpecifierQualifierList {
-		if expr, ok := list.AttributeSpecifier.has(idVectorSize, idVectorSize2); ok {
+		if expr, ok := list.AttributeSpecifier.Has(idVectorSize, idVectorSize2); ok {
 			n.vectorize(ctx, expr)
 			break
 		}
@@ -2011,8 +2037,8 @@ func (n *ParameterDeclaration) check(ctx *context, ft *functionType) *Parameter 
 		if n.AttributeSpecifierList != nil {
 			//TODO panic(n.Position().String())
 		}
-		n.AttributeSpecifierList.check(ctx)
-		return &Parameter{d: n.Declarator, typ: n.Declarator.Type()}
+		n.AttributeSpecifierList.check(ctx, n.typ.baseP())
+		return &Parameter{d: n.Declarator, typ: n.typ}
 	case ParameterDeclarationAbstract: // DeclarationSpecifiers AbstractDeclarator
 		n.typ, _, _ = n.DeclarationSpecifiers.check(ctx, false)
 		if n.AbstractDeclarator != nil {
@@ -2054,7 +2080,10 @@ func (n *TypeQualifiers) check(ctx *context, typ **typeBase) {
 			}
 			n.TypeQualifier.check(ctx, *typ)
 		case TypeQualifiersAttribute: // AttributeSpecifier
-			n.AttributeSpecifier.check(ctx)
+			if *typ == nil {
+				*typ = &typeBase{}
+			}
+			n.AttributeSpecifier.check(ctx, *typ)
 		default:
 			panic(todo(""))
 		}
@@ -2080,7 +2109,7 @@ func (n *TypeQualifier) check(ctx *context, typ *typeBase) {
 	}
 }
 
-func (n *SpecifierQualifierList) check(ctx *context, inUnion bool) Type {
+func (n *SpecifierQualifierList) check(ctx *context, inUnion, isPacked bool) Type {
 	n0 := n
 	typ := &typeBase{}
 	for ; n != nil; n = n.SpecifierQualifierList {
@@ -2092,7 +2121,7 @@ func (n *SpecifierQualifierList) check(ctx *context, inUnion bool) Type {
 		case SpecifierQualifierListAlignSpec: // AlignmentSpecifier SpecifierQualifierList
 			n.AlignmentSpecifier.check(ctx)
 		case SpecifierQualifierListAttribute: // AttributeSpecifier SpecifierQualifierList
-			n.AttributeSpecifier.check(ctx)
+			n.AttributeSpecifier.check(ctx, typ)
 		default:
 			panic(todo(""))
 		}
@@ -2144,7 +2173,7 @@ func (n *TypeSpecifier) check(ctx *context, typ *typeBase, inUnion bool) {
 		op := n.Expression.check(ctx)
 		n.typ = op.Type()
 	case TypeSpecifierTypeofType: // "typeof" '(' TypeName ')'
-		n.typ = n.TypeName.check(ctx, false)
+		n.typ = n.TypeName.check(ctx, false, false)
 	case TypeSpecifierAtomic: // AtomicTypeSpecifier
 		n.AtomicTypeSpecifier.check(ctx)
 	case
@@ -2162,7 +2191,7 @@ func (n *AtomicTypeSpecifier) check(ctx *context) {
 		return
 	}
 
-	n.TypeName.check(ctx, false)
+	n.TypeName.check(ctx, false, false)
 }
 
 func (n *EnumSpecifier) check(ctx *context) {
@@ -2172,7 +2201,7 @@ func (n *EnumSpecifier) check(ctx *context) {
 
 	switch n.Case {
 	case EnumSpecifierDef: // "enum" AttributeSpecifierList IDENTIFIER '{' EnumeratorList ',' '}'
-		n.AttributeSpecifierList.check(ctx)
+		n.AttributeSpecifierList.check(ctx, nil)
 		min, max := n.EnumeratorList.check(ctx)
 		var tmin, tmax Type
 		switch min := min.(type) {
@@ -2320,10 +2349,10 @@ func (n *Enumerator) check(ctx *context, iota, min, max Value) (Value, Value, Va
 	}
 	switch n.Case {
 	case EnumeratorIdent: // IDENTIFIER AttributeSpecifierList
-		n.AttributeSpecifierList.check(ctx)
+		n.AttributeSpecifierList.check(ctx, nil)
 		n.Operand = (&operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Type(Int), value: iota}).normalize(ctx, n)
 	case EnumeratorExpr: // IDENTIFIER AttributeSpecifierList '=' ConstantExpression
-		n.AttributeSpecifierList.check(ctx)
+		n.AttributeSpecifierList.check(ctx, nil)
 		n.Operand = n.ConstantExpression.check(ctx, ctx.mode|mIntConstExpr)
 		iota = n.Operand.Value()
 	default:
@@ -2420,8 +2449,8 @@ func (n *StructOrUnionSpecifier) check(ctx *context, typ *typeBase, inUnion bool
 	switch n.Case {
 	case StructOrUnionSpecifierDef: // StructOrUnion AttributeSpecifierList IDENTIFIER '{' StructDeclarationList '}'
 		typ.kind = byte(n.StructOrUnion.check(ctx))
-		attr := n.AttributeSpecifierList.check(ctx)
-		fields := n.StructDeclarationList.check(ctx, inUnion || typ.Kind() == Union)
+		attr := n.AttributeSpecifierList.check(ctx, typ)
+		fields := n.StructDeclarationList.check(ctx, inUnion || typ.Kind() == Union, typ.IsPacked())
 		m := make(map[StringID]*field, len(fields))
 		x := 0
 		for _, v := range fields {
@@ -2460,7 +2489,7 @@ func (n *StructOrUnionSpecifier) check(ctx *context, typ *typeBase, inUnion bool
 		}
 	case StructOrUnionSpecifierTag: // StructOrUnion AttributeSpecifierList IDENTIFIER
 		typ.kind = byte(n.StructOrUnion.check(ctx))
-		attr := n.AttributeSpecifierList.check(ctx)
+		attr := n.AttributeSpecifierList.check(ctx, typ.baseP())
 		n.typ = &taggedType{
 			resolutionScope: n.lexicalScope,
 			tag:             n.Token.Value,
@@ -2475,40 +2504,46 @@ func (n *StructOrUnionSpecifier) check(ctx *context, typ *typeBase, inUnion bool
 	return n.typ
 }
 
-func (n *StructDeclarationList) check(ctx *context, inUnion bool) (s []*field) {
+func (n *StructDeclarationList) check(ctx *context, inUnion, isPacked bool) (s []*field) {
 	for ; n != nil; n = n.StructDeclarationList {
-		s = append(s, n.StructDeclaration.check(ctx, inUnion)...)
+		s = append(s, n.StructDeclaration.check(ctx, inUnion, isPacked)...)
 	}
 	return s
 }
 
-func (n *StructDeclaration) check(ctx *context, inUnion bool) (s []*field) {
+func (n *StructDeclaration) check(ctx *context, inUnion, isPacked bool) (s []*field) {
 	if n == nil || n.Empty {
 		return nil
 	}
 
-	typ := n.SpecifierQualifierList.check(ctx, inUnion)
+	typ := n.SpecifierQualifierList.check(ctx, inUnion, isPacked)
 	if n.StructDeclaratorList != nil {
-		return n.StructDeclaratorList.check(ctx, n.SpecifierQualifierList, typ, inUnion)
+		return n.StructDeclaratorList.check(ctx, n.SpecifierQualifierList, typ, inUnion, isPacked)
 	}
 
 	return []*field{{typ: typ, inUnion: inUnion}}
 }
 
-func (n *StructDeclaratorList) check(ctx *context, td typeDescriptor, typ Type, inUnion bool) (s []*field) {
+func (n *StructDeclaratorList) check(ctx *context, td typeDescriptor, typ Type, inUnion, isPacked bool) (s []*field) {
 	for ; n != nil; n = n.StructDeclaratorList {
-		s = append(s, n.StructDeclarator.check(ctx, td, typ, inUnion))
+		s = append(s, n.StructDeclarator.check(ctx, td, typ, inUnion, isPacked))
 	}
 	return s
 }
 
-func (n *StructDeclarator) check(ctx *context, td typeDescriptor, typ Type, inUnion bool) *field {
+func (n *StructDeclarator) check(ctx *context, td typeDescriptor, typ Type, inUnion, isPacked bool) *field {
 	if n == nil {
 		return nil
 	}
 
+	if isPacked {
+		typ.baseP().flags |= fPacked
+	}
 	if n.Declarator != nil {
 		typ = n.Declarator.check(ctx, td, typ, false)
+	}
+	if attr := n.AttributeSpecifierList.check(ctx, typ.baseP()); len(attr) != 0 {
+		typ = &attributedType{typ, attr}
 	}
 	sf := &field{
 		typ:     typ,
@@ -2542,7 +2577,7 @@ func (n *StructDeclarator) check(ctx *context, td typeDescriptor, typ Type, inUn
 			//dbg("", n.ConstantExpression)
 			panic(n.Declarator.Position())
 		}
-		n.AttributeSpecifierList.check(ctx)
+		n.AttributeSpecifierList.check(ctx, sf.typ.baseP())
 	default:
 		panic(todo(""))
 	}
@@ -2575,7 +2610,7 @@ func (n *CastExpression) check(ctx *context) Operand {
 		n.Operand = n.UnaryExpression.check(ctx)
 		n.IsSideEffectsFree = n.UnaryExpression.IsSideEffectsFree
 	case CastExpressionCast: // '(' TypeName ')' CastExpression
-		t := n.TypeName.check(ctx, false)
+		t := n.TypeName.check(ctx, false, false)
 		ctx.push(ctx.mode)
 		if m := ctx.mode; m&mIntConstExpr != 0 && m&mIntConstExprAnyCast == 0 {
 			if t := n.TypeName.Type(); t != nil && t.Kind() != Int {
@@ -2759,19 +2794,18 @@ func (n *PostfixExpression) check(ctx *context, implicitFunc bool) Operand {
 		if f := ctx.checkFn; f != nil {
 			f.CompositeLiterals = append(f.CompositeLiterals, n)
 		}
-		t := n.TypeName.check(ctx, false)
+		t := n.TypeName.check(ctx, false, false)
 		var v *InitializerValue
 		if n.InitializerList != nil {
-			n.InitializerList.check(ctx, &n.InitializerList.list, t, Automatic, 0)
-			if n.InitializerList.IsConst() {
-				v = &InitializerValue{typ: t, initializer: n.InitializerList}
-			}
+			n.InitializerList.check(ctx, &n.InitializerList.list, t, Automatic, 0, nil)
+			n.InitializerList.setConstZero()
+			v = &InitializerValue{typ: t, initializer: n.InitializerList}
 		}
 		n.Operand = &lvalue{Operand: (&operand{abi: &ctx.cfg.ABI, typ: t, value: v}).normalize(ctx, n)}
 	case PostfixExpressionTypeCmp: // "__builtin_types_compatible_p" '(' TypeName ',' TypeName ')'
 		n.IsSideEffectsFree = true
-		t1 := n.TypeName.check(ctx, false)
-		t2 := n.TypeName2.check(ctx, false)
+		t1 := n.TypeName.check(ctx, false, false)
+		t2 := n.TypeName2.check(ctx, false, false)
 		v := 0
 		switch {
 		case t1.IsArithmeticType() && t2.IsArithmeticType():
@@ -2790,7 +2824,7 @@ func (n *PostfixExpression) check(ctx *context, implicitFunc bool) Operand {
 			break
 		}
 
-		if !expr1.isConst() {
+		if !expr1.IsConst() {
 			ctx.errNode(n, "first argument of __builtin_choose_expr must be a constant expression: %v %v", expr1.Value(), expr1.Type())
 			break
 		}
@@ -2959,7 +2993,7 @@ func (n *Expression) check(ctx *context) Operand {
 	case ExpressionComma: // Expression ',' AssignmentExpression
 		op := n.Expression.check(ctx)
 		n.Operand = n.AssignmentExpression.check(ctx)
-		if !op.isConst() && n.Operand.isConst() {
+		if !op.IsConst() && n.Operand.IsConst() {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: n.Operand.Type()}
 		}
 		n.IsSideEffectsFree = n.Expression.IsSideEffectsFree && n.AssignmentExpression.IsSideEffectsFree
@@ -3003,7 +3037,23 @@ func (n *PrimaryExpression) check(ctx *context, implicitFunc bool) Operand {
 	case PrimaryExpressionChar: // CHARCONST
 		n.IsSideEffectsFree = true
 		s := []rune(n.Token.Value.String())
-		n.Operand = (&operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Type(Int), value: Int64Value(s[0])}).normalize(ctx, n)
+		var v Value
+		switch {
+		case s[0] <= 255:
+			// If an integer character constant contains a single character or escape
+			// sequence, its value is the one that results when an object with type char
+			// whose value is that of the single character or escape sequence is converted
+			// to type int.
+			switch {
+			case ctx.cfg.ABI.SignedChar:
+				v = Int64Value(int8(s[0]))
+			default:
+				v = Int64Value(s[0])
+			}
+		default:
+			v = Int64Value(s[0])
+		}
+		n.Operand = (&operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Type(Int), value: v}).normalize(ctx, n)
 	case PrimaryExpressionLChar: // LONGCHARCONST
 		n.IsSideEffectsFree = true
 		s := []rune(n.Token.Value.String())
@@ -3474,7 +3524,7 @@ func (n *ConditionalExpression) check(ctx *context) Operand {
 			// determined by the usual arithmetic conversions, were
 			// they applied to those two operands,
 			// is the type of the result.
-			op, _ := usualArithmeticConversions(ctx, n, a, b)
+			op, _ := usualArithmeticConversions(ctx, n, a, b, true)
 			n.Operand = (&operand{abi: &ctx.cfg.ABI, typ: op.Type(), value: val}).normalize(ctx, n)
 		// — both operands are pointers to qualified or unqualified versions of compatible types;
 		case at.Kind() == Ptr && bt.Kind() == Ptr:
@@ -3598,7 +3648,7 @@ func (n *InclusiveOrExpression) check(ctx *context) Operand {
 			break
 		}
 
-		a, b = usualArithmeticConversions(ctx, &n.Token, a, b)
+		a, b = usualArithmeticConversions(ctx, &n.Token, a, b, true)
 		n.promote = a.Type()
 		if a.Value() == nil || b.Value() == nil {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: a.Type()}
@@ -3624,7 +3674,7 @@ func checkBinaryVectorIntegerArtithmetic(ctx *context, n Node, a, b Operand) Ope
 		}
 		b = &operand{abi: &ctx.cfg.ABI, typ: b.Type().Elem()}
 	}
-	a, b = usualArithmeticConversions(ctx, n, a, b)
+	a, b = usualArithmeticConversions(ctx, n, a, b, true)
 	if !a.Type().IsIntegerType() || !b.Type().IsIntegerType() {
 		ctx.errNode(n, "operands must be integers")
 	}
@@ -3655,7 +3705,7 @@ func (n *ExclusiveOrExpression) check(ctx *context) Operand {
 			break
 		}
 
-		a, b = usualArithmeticConversions(ctx, &n.Token, a, b)
+		a, b = usualArithmeticConversions(ctx, &n.Token, a, b, true)
 		n.promote = a.Type()
 		if a.Value() == nil || b.Value() == nil {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: a.Type()}
@@ -3693,7 +3743,7 @@ func (n *AndExpression) check(ctx *context) Operand {
 			break
 		}
 
-		a, b = usualArithmeticConversions(ctx, &n.Token, a, b)
+		a, b = usualArithmeticConversions(ctx, &n.Token, a, b, true)
 		n.promote = a.Type()
 		if a.Value() == nil || b.Value() == nil {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: a.Type()}
@@ -3734,7 +3784,7 @@ func (n *EqualityExpression) check(ctx *context) Operand {
 			n.Operand = checkVectorComparison(ctx, n, lo.Type(), ro.Type())
 			return n.Operand
 		case lt.IsArithmeticType() && rt.IsArithmeticType():
-			op, _ := usualArithmeticConversions(ctx, n, lo, ro)
+			op, _ := usualArithmeticConversions(ctx, n, lo, ro, true)
 			n.promote = op.Type()
 			ok = true
 		case lt.Kind() == Ptr && (rt.Kind() == Ptr || rt.IsIntegerType()):
@@ -3822,7 +3872,7 @@ func (n *RelationalExpression) check(ctx *context) Operand {
 		ok := true
 		switch {
 		case lt.IsRealType() && rt.IsRealType():
-			op, _ := usualArithmeticConversions(ctx, n, lo, ro)
+			op, _ := usualArithmeticConversions(ctx, n, lo, ro, true)
 			n.promote = op.Type()
 		case lt.Kind() == Ptr && (rt.Kind() == Ptr || rt.IsIntegerType()):
 			n.promote = lt
@@ -3941,7 +3991,28 @@ func (n *AdditiveExpression) check(ctx *context) Operand {
 		}
 
 		if t := a.Type().Decay(); t.Kind() == Ptr && b.Type().IsScalarType() {
-			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: t}
+			var x uintptr
+			hasx := false
+			switch v := b.Value().(type) {
+			case Int64Value:
+				x = uintptr(v)
+				hasx = true
+			case Uint64Value:
+				x = uintptr(v)
+				hasx = true
+			}
+			off := x * a.Type().Elem().Size()
+			switch y := a.Value().(type) {
+			case StringValue:
+				n.Operand = &operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Ptr(n, a.Type().Elem()), value: y, offset: a.Offset() + off}
+			default:
+				switch {
+				case a.Value() == nil && a.Declarator() != nil && hasx:
+					n.Operand = &lvalue{Operand: &operand{abi: &ctx.cfg.ABI, typ: ctx.cfg.ABI.Ptr(n, a.Type().Elem()), offset: a.Offset() + off}, declarator: a.Declarator()}
+				default:
+					n.Operand = &operand{abi: &ctx.cfg.ABI, typ: t}
+				}
+			}
 			break
 		}
 
@@ -3955,7 +4026,7 @@ func (n *AdditiveExpression) check(ctx *context) Operand {
 			break
 		}
 
-		a, b = usualArithmeticConversions(ctx, &n.Token, a, b)
+		a, b = usualArithmeticConversions(ctx, &n.Token, a, b, true)
 		n.promote = a.Type()
 		if a.Value() == nil || b.Value() == nil {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: a.Type()}
@@ -4016,7 +4087,7 @@ func (n *AdditiveExpression) check(ctx *context) Operand {
 			break
 		}
 
-		a, b = usualArithmeticConversions(ctx, &n.Token, a, b)
+		a, b = usualArithmeticConversions(ctx, &n.Token, a, b, true)
 		n.promote = a.Type()
 		if a.Value() == nil || b.Value() == nil {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: a.Type()}
@@ -4042,7 +4113,7 @@ func checkBinaryVectorArtithmetic(ctx *context, n Node, a, b Operand) Operand {
 		}
 		b = &operand{abi: &ctx.cfg.ABI, typ: b.Type().Elem()}
 	}
-	usualArithmeticConversions(ctx, n, a, b)
+	usualArithmeticConversions(ctx, n, a, b, true)
 	return &operand{abi: &ctx.cfg.ABI, typ: rt}
 }
 
@@ -4081,7 +4152,7 @@ func (n *MultiplicativeExpression) check(ctx *context) Operand {
 			break
 		}
 
-		a, b = usualArithmeticConversions(ctx, &n.Token, a, b)
+		a, b = usualArithmeticConversions(ctx, &n.Token, a, b, true)
 		n.promote = a.Type()
 		if a.Value() == nil || b.Value() == nil {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: a.Type()}
@@ -4102,7 +4173,7 @@ func (n *MultiplicativeExpression) check(ctx *context) Operand {
 			break
 		}
 
-		a, b = usualArithmeticConversions(ctx, &n.Token, a, b)
+		a, b = usualArithmeticConversions(ctx, &n.Token, a, b, true)
 		n.promote = a.Type()
 		if a.Value() == nil || b.Value() == nil {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: a.Type()}
@@ -4128,7 +4199,7 @@ func (n *MultiplicativeExpression) check(ctx *context) Operand {
 			break
 		}
 
-		a, b = usualArithmeticConversions(ctx, &n.Token, a, b)
+		a, b = usualArithmeticConversions(ctx, &n.Token, a, b, true)
 		n.promote = a.Type()
 		if a.Value() == nil || b.Value() == nil {
 			n.Operand = &operand{abi: &ctx.cfg.ABI, typ: a.Type()}
@@ -4150,7 +4221,7 @@ func (n *Declarator) check(ctx *context, td typeDescriptor, typ Type, tld bool) 
 
 	typ = n.Pointer.check(ctx, typ)
 	n.td = td
-	if attr := n.AttributeSpecifierList.check(ctx); len(attr) != 0 {
+	if attr := n.AttributeSpecifierList.check(ctx, typ.baseP()); len(attr) != 0 {
 		typ = &attributedType{typ, attr}
 	}
 	n.typ = n.DirectDeclarator.check(ctx, typ)
@@ -4226,14 +4297,14 @@ func (n *Declarator) check(ctx *context, td typeDescriptor, typ Type, tld bool) 
 			abi.Types[k] = ABIType{Size: t.Size(), Align: t.Align(), FieldAlign: t.FieldAlign()}
 		}
 	}
-	switch expr, ok := n.AttributeSpecifierList.has(idVectorSize, idVectorSize2); {
+	switch expr, ok := n.AttributeSpecifierList.Has(idVectorSize, idVectorSize2); {
 	case ok:
 		n.vectorize(ctx, expr)
 	default:
 		switch x := td.(type) {
 		case *DeclarationSpecifiers:
 			for ; x != nil; x = x.DeclarationSpecifiers {
-				if expr, ok := x.AttributeSpecifier.has(idVectorSize, idVectorSize2); ok {
+				if expr, ok := x.AttributeSpecifier.Has(idVectorSize, idVectorSize2); ok {
 					n.vectorize(ctx, expr)
 					break
 				}
@@ -4313,7 +4384,7 @@ func (n *DirectDeclarator) check(ctx *context, typ Type) Type {
 		n.Asm.check(ctx)
 		return typ
 	case DirectDeclaratorDecl: // '(' AttributeSpecifierList Declarator ')'
-		n.AttributeSpecifierList.check(ctx)
+		n.AttributeSpecifierList.check(ctx, typ.baseP())
 		return n.Declarator.check(ctx, noTypeDescriptor, typ, false)
 	case DirectDeclaratorArr: // DirectDeclarator '[' TypeQualifiers AssignmentExpression ']'
 		return n.DirectDeclarator.check(ctx, checkArray(ctx, &n.Token, typ, n.AssignmentExpression, true, false))
@@ -4478,41 +4549,53 @@ func (n *AsmQualifier) check(ctx *context) {
 	}
 }
 
-func (n *AttributeSpecifierList) check(ctx *context) (a []*AttributeSpecifier) {
+func (n *AttributeSpecifierList) check(ctx *context, t *typeBase) (a []*AttributeSpecifier) {
 	for ; n != nil; n = n.AttributeSpecifierList {
-		a = append(a, n.AttributeSpecifier.check(ctx))
+		a = append(a, n.AttributeSpecifier.check(ctx, t))
 	}
 	return a
 }
 
-func (n *AttributeSpecifier) check(ctx *context) *AttributeSpecifier {
+func (n *AttributeSpecifier) check(ctx *context, t *typeBase) *AttributeSpecifier {
 	if n == nil {
 		return nil
 	}
 
-	n.AttributeValueList.check(ctx)
+	n.AttributeValueList.check(ctx, t)
 	return n
 }
 
-func (n *AttributeValueList) check(ctx *context) {
+func (n *AttributeValueList) check(ctx *context, t *typeBase) {
 	for ; n != nil; n = n.AttributeValueList {
-		n.AttributeValue.check(ctx)
+		n.AttributeValue.check(ctx, t)
 	}
 }
 
-func (n *AttributeValue) check(ctx *context) {
+func (n *AttributeValue) check(ctx *context, t *typeBase) {
 	if n == nil {
 		return
 	}
 
 	switch n.Case {
 	case AttributeValueIdent: // IDENTIFIER
-		//TODO
+		if n.Token.Value == idPacked && t != nil {
+			t.flags |= fPacked
+		}
 	case AttributeValueExpr: // IDENTIFIER '(' ExpressionList ')'
 		v := ctx.cfg.ignoreErrors
 		ctx.cfg.ignoreErrors = true
 		defer func() { ctx.cfg.ignoreErrors = v }()
 		n.ExpressionList.check(ctx)
+		if n.Token.Value == idAligned && n.ExpressionList != nil && t != nil {
+			switch x := n.ExpressionList.AssignmentExpression.Operand.Value().(type) {
+			case Int64Value:
+				t.setAligned(int(x))
+				switch t.Kind() {
+				case Struct, Union:
+					ctx.structs[StructInfo{Size: t.Size(), Align: t.Align()}] = struct{}{}
+				}
+			}
+		}
 	default:
 		panic(todo(""))
 	}
@@ -4551,7 +4634,7 @@ func (n *DeclarationSpecifiers) check(ctx *context, inUnion bool) (r Type, inlin
 		case DeclarationSpecifiersAlignSpec: // AlignmentSpecifier DeclarationSpecifiers
 			n.AlignmentSpecifier.check(ctx)
 		case DeclarationSpecifiersAttribute: // AttributeSpecifier DeclarationSpecifiers
-			n.AttributeSpecifier.check(ctx)
+			n.AttributeSpecifier.check(ctx, typ)
 		default:
 			panic(todo(""))
 		}
@@ -4567,9 +4650,11 @@ func (n *AlignmentSpecifier) check(ctx *context) {
 
 	switch n.Case {
 	case AlignmentSpecifierAlignasType: // "_Alignas" '(' TypeName ')'
-		n.TypeName.check(ctx, false)
+		n.TypeName.check(ctx, false, false)
+		//TODO actually set the alignment
 	case AlignmentSpecifierAlignasExpr: // "_Alignas" '(' ConstantExpression ')'
 		n.ConstantExpression.check(ctx, ctx.mode|mIntConstExpr)
+		//TODO actually set the alignment
 	default:
 		panic(todo(""))
 	}
@@ -4692,8 +4777,10 @@ func (n *DeclarationList) checkFn(ctx *context, typ Type, s Scope) {
 				Case:  DirectDeclaratorIdent,
 				Token: Token{Rune: IDENTIFIER, Value: nm},
 			},
-			IsParameter: true,
-			typ:         ctx.cfg.ABI.Type(Int),
+			IsParameter:  true,
+			Linkage:      None,
+			StorageClass: Automatic,
+			typ:          ctx.cfg.ABI.Type(Int),
 		}
 		s.declare(nm, d)
 		params[i] = &Parameter{d, d.typ}
@@ -4932,7 +5019,7 @@ func (n *ExpressionStatement) check(ctx *context) Operand {
 		return noOperand
 	}
 
-	n.AttributeSpecifierList.check(ctx)
+	n.AttributeSpecifierList.check(ctx, nil)
 	return n.Expression.check(ctx)
 }
 
@@ -4950,7 +5037,7 @@ func (n *LabeledStatement) check(ctx *context) {
 			//TODO report redeclared
 		}
 		ctx.checkFn.Labels[n.Token.Value] = n
-		n.AttributeSpecifierList.check(ctx)
+		n.AttributeSpecifierList.check(ctx, nil)
 		n.Statement.check(ctx)
 	case LabeledStatementCaseLabel: // "case" ConstantExpression ':' Statement
 		if ctx.switches <= 0 {

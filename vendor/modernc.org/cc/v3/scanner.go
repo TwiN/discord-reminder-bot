@@ -434,7 +434,7 @@ func (s *scanner) next() (r byte) {
 		// (introducing new-line characters for end-of-line indicators)
 		// if necessary. Trigraph sequences are replaced by
 		// corresponding single-character internal representations.
-		if bytes.Contains(b, trigraphPrefix) {
+		if !s.ctx.cfg.DisableTrigraphs && bytes.Contains(b, trigraphPrefix) {
 			for _, v := range trigraphs {
 				b = bytes.Replace(b, v.from, v.to, -1)
 			}

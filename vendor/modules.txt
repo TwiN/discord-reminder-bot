@@ -35,11 +35,13 @@ golang.org/x/tools/internal/typesinternal
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
-# modernc.org/cc/v3 v3.32.4
+# lukechampine.com/uint128 v1.1.1
+lukechampine.com/uint128
+# modernc.org/cc/v3 v3.33.6
 modernc.org/cc/v3
-# modernc.org/ccgo/v3 v3.9.2
+# modernc.org/ccgo/v3 v3.9.5
 modernc.org/ccgo/v3/lib
-# modernc.org/libc v1.9.5
+# modernc.org/libc v1.9.11
 modernc.org/libc
 modernc.org/libc/errno
 modernc.org/libc/fcntl
@@ -63,17 +65,17 @@ modernc.org/libc/time
 modernc.org/libc/unistd
 modernc.org/libc/utime
 modernc.org/libc/uuid/uuid
-# modernc.org/mathutil v1.2.2
+# modernc.org/mathutil v1.4.0
 modernc.org/mathutil
 # modernc.org/memory v1.0.4
 modernc.org/memory
 # modernc.org/opt v0.1.1
 modernc.org/opt
-# modernc.org/sqlite v1.10.6
+# modernc.org/sqlite v1.11.2
 ## explicit
 modernc.org/sqlite
 modernc.org/sqlite/lib
-# modernc.org/strutil v1.1.0
+# modernc.org/strutil v1.1.1
 modernc.org/strutil
 # modernc.org/token v1.0.0
 modernc.org/token

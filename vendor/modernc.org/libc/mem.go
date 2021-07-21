@@ -86,6 +86,10 @@ func Xfree(t *TLS, p uintptr) {
 }
 
 func UsableSize(p uintptr) types.Size_t {
+	allocMu.Lock()
+
+	defer allocMu.Unlock()
+
 	return types.Size_t(memory.UintptrUsableSize(p))
 }
 

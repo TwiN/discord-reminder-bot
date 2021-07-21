@@ -700,10 +700,10 @@ out:
 				switch x := v.(type) {
 				case *Enumerator:
 					if x.isVisible(seq) {
+						resolvedIn = s
 						resolvedTo = x
 						p.tok.Rune = ENUMCONST
 						kind = PrimaryExpressionEnum
-						resolvedIn = s
 						break out
 					}
 				case *Declarator:
@@ -771,7 +771,7 @@ out:
 		return nil
 	}
 
-	return &PrimaryExpression{Case: kind, Token: p.shift(), resolvedIn: resolvedIn, lexicalScope: p.declScope, resolvedTo: resolvedTo}
+	return &PrimaryExpression{Case: kind, Token: p.shift(), lexicalScope: p.declScope, resolvedIn: resolvedIn, resolvedTo: resolvedTo}
 }
 
 // [0], 6.5.2 Postfix operators

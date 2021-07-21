@@ -4328,7 +4328,7 @@ func X_ftime(t *TLS, timeptr uintptr) {
 	var tm = gotime.Now()
 	var tPtr = (*time.X__timeb64)(unsafe.Pointer(timeptr))
 	tPtr.Ftime = tm.Unix()
-	tPtr.Fmillitm = uint16(tm.Nanosecond() * 1000)
+	tPtr.Fmillitm = uint16(gotime.Duration(tm.Nanosecond()) / gotime.Millisecond)
 	if inDST(tm) {
 		tPtr.Fdstflag = 1
 	}

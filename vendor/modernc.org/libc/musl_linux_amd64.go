@@ -4347,11 +4347,11 @@ type __res_state = struct {
 	defdname  [256]int8
 	pfcode    uint64
 	ndots     uint32 /* unsigned ndots: 4, unsigned nsort: 4, unsigned ipv6_unavail: 1, unsigned unused: 23 */
+	_         [4]byte
 	sort_list [10]struct {
 		addr struct{ s_addr in_addr_t }
 		mask uint32_t
 	}
-	_           [4]byte
 	qhook       uintptr
 	rhook       uintptr
 	res_h_errno int32
