@@ -56,7 +56,7 @@ func CreateReminder(reminder *core.Reminder) error {
 		reminder.Time,
 	)
 	if err != nil {
-		log.Printf("[database][CreateReminder] Failed to create reminder for NotificationMessageID=%s; duration=%dms", reminder.NotificationMessageID, time.Since(start).Milliseconds())
+		log.Printf("[database][CreateReminder] Failed to create reminder for NotificationMessageID=%s in duration=%dms", reminder.NotificationMessageID, time.Since(start).Milliseconds())
 	} else {
 		log.Printf("[database][CreateReminder] Created reminder for NotificationMessageID=%s in duration=%dms", reminder.NotificationMessageID, time.Since(start).Milliseconds())
 	}
