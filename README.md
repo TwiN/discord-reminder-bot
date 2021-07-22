@@ -4,6 +4,18 @@
 
 This is a simple Discord bot for managing reminders.
 
+
+## Table of Contents
+- [Description](#description)
+- [Usage](#usage)
+- [Getting started](#getting-started)
+    - [Discord](#discord)
+- [Docker](#docker)
+    - [Pulling from Docker Hub](#pulling-from-docker-hub)
+    - [Building image locally](#building-image-locally)
+
+
+## Description
 If you react to a message with ⏰ (`:alarm_clock:`), ⏲ (`:timer:`) or 🎗 (`:reminder_ribbon:`), a message will be sent 
 to you through direct message informing you that you will be reminded about the message you reacted to in 8 hours.
 
