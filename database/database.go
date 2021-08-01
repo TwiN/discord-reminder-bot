@@ -45,6 +45,7 @@ func createSchema() error {
 	return err
 }
 
+// CreateReminder creates a new reminder
 func CreateReminder(reminder *core.Reminder) error {
 	start := time.Now()
 	_, err := db.Exec(
