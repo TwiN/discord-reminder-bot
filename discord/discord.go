@@ -82,8 +82,6 @@ func updateExistingMessage(bot *discordgo.Session, channelID, messageID, title, 
 	return message, nil
 }
 
-// TODO: r!remindme DURATION [daily|weekly|monthly]
-
 func createReminder(bot *discordgo.Session, userID, guildID, channelID, messageID, note string, when time.Time) (*core.Reminder, error) {
 	if len(note) > MaximumNoteLength {
 		return nil, fmt.Errorf("note exceeded maximum length of %d", MaximumNoteLength)
