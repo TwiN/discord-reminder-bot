@@ -42,11 +42,11 @@ func waitUntilTermination() {
 
 // Connect starts a Discord session
 func Connect(discordToken string) (*discordgo.Session, error) {
-	discordgo.MakeIntent(discordgo.IntentsGuildMessageReactions)
 	session, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
 		return nil, err
 	}
+	session.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentsDirectMessages | discordgo.IntentsDirectMessageReactions
 	err = session.Open()
 	return session, err
 }
