@@ -34,7 +34,7 @@ func HandleMessage(bot *discordgo.Session, message *discordgo.MessageCreate) {
 
 func HandleRemindMe(bot *discordgo.Session, message *discordgo.MessageCreate, query string) {
 	if len(query) == 0 {
-		_, _ = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("**Usage:**\n```%sRemindMe <DURATION> [NOTE]```**Where:**\n- `<DURATION>` must have a format similar to the following: `30m`, `2h`, `6h30m`, `30d`, `7d12h30m`\n- `[NOTE]` is an optional note to attach to the reminder with less than %d characters\n\n:information_source: _You can also create a reminder by reacting with %s, %s or %s to a message, and you can view your reminders by using `%slist`._", botCommandPrefix, MaximumNoteLength, EmojiCreateReminder, EmojiCreateReminderAlt1, EmojiCreateReminderAlt2, botCommandPrefix), message.Reference())
+		_, _ = bot.ChannelMessageSendReply(message.ChannelID, fmt.Sprintf("**Usage:**\n```%sRemindMe DURATION NOTE```**Where:**\n- `DURATION` must have a format similar to the following: `30m`, `2h`, `6h30m`, `30d`, `7d12h30m`\n- `NOTE` is an optional note to attach to the reminder with less than %d characters\n\n:information_source: _You can also create a reminder by reacting with %s, %s or %s to a message, and you can view your reminders by using `%slist`._", botCommandPrefix, MaximumNoteLength, EmojiCreateReminder, EmojiCreateReminderAlt1, EmojiCreateReminderAlt2, botCommandPrefix), message.Reference())
 		return
 	}
 	// Validate duration
