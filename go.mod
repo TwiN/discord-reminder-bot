@@ -1,4 +1,4 @@
-module github.com/TwinProduction/discord-reminder-bot
+module github.com/TwiN/discord-reminder-bot
 
 go 1.16
 

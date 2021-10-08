@@ -3,7 +3,7 @@ package core
 import (
 	"time"
 
-	"github.com/TwinProduction/discord-reminder-bot/format"
+	"github.com/TwiN/discord-reminder-bot/format"
 )
 
 type Reminder struct {

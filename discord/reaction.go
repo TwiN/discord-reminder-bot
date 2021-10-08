@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/TwinProduction/discord-reminder-bot/database"
+	"github.com/TwiN/discord-reminder-bot/database"
 	"github.com/bwmarrin/discordgo"
 )
 

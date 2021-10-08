@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/TwinProduction/discord-reminder-bot/core"
+	"github.com/TwiN/discord-reminder-bot/core"
 	_ "modernc.org/sqlite"
 )
 

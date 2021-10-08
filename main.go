@@ -6,9 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/TwinProduction/discord-reminder-bot/config"
-	"github.com/TwinProduction/discord-reminder-bot/database"
-	"github.com/TwinProduction/discord-reminder-bot/discord"
+	"github.com/TwiN/discord-reminder-bot/config"
+	"github.com/TwiN/discord-reminder-bot/database"
+	"github.com/TwiN/discord-reminder-bot/discord"
 	"github.com/bwmarrin/discordgo"
 )
 

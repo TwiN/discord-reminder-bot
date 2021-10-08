@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/TwinProduction/discord-reminder-bot/config"
-	"github.com/TwinProduction/discord-reminder-bot/core"
-	"github.com/TwinProduction/discord-reminder-bot/database"
-	"github.com/TwinProduction/discord-reminder-bot/format"
+	"github.com/TwiN/discord-reminder-bot/config"
+	"github.com/TwiN/discord-reminder-bot/core"
+	"github.com/TwiN/discord-reminder-bot/database"
+	"github.com/TwiN/discord-reminder-bot/format"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -55,8 +55,13 @@ func Start(bot *discordgo.Session, cfg *config.Config) {
 	bot.AddHandler(HandleMessage)
 	bot.AddHandler(HandleReactionAdd)
 	bot.AddHandler(HandleReactionRemove)
+	bot.AddHandler(HandleJoin)
 	_ = bot.UpdateListeningStatus(botCommandPrefix + "RemindMe")
 	go worker(bot)
+}
+
+func HandleJoin(bot *discordgo.Session, guild *discordgo.GuildCreate) {
+	fmt.Println(guild.Name)
 }
 
 // sendDirectMessage sends a direct message to a user and returns the ID of the message sent

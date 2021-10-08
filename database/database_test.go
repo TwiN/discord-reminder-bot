@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TwinProduction/discord-reminder-bot/core"
+	"github.com/TwiN/discord-reminder-bot/core"
 )
 
 func TestCreateReminder(t *testing.T) {
