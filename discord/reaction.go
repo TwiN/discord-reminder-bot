@@ -62,10 +62,14 @@ func handleReactionListReminders(bot *discordgo.Session, reaction *discordgo.Mes
 }
 
 func handleReactionModifyReminder(bot *discordgo.Session, reaction *discordgo.MessageReaction) {
-	// get the notification message
+	if channel, err := bot.Channel(reaction.ChannelID); err == nil && channel.Type != discordgo.ChannelTypeDM {
+		// Ignore reactions that do not come from DMs.
+		// While reminders can be created from reactions outside of DMs, all reactions are managed in DMs.
+		return
+	}
 	reminder, err := database.GetReminderByNotificationMessageID(reaction.MessageID)
 	if err != nil {
-		log.Println("[discord][HandleReactionAdd] Failed to retrieve reminder by notification message id:", err.Error())
+		log.Println("[discord][handleReactionModifyReminder] Failed to retrieve reminder by notification message id:", err.Error())
 		return
 	}
 	if reminder == nil {
