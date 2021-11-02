@@ -2,6 +2,7 @@ package discord
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -61,7 +62,7 @@ func Start(bot *discordgo.Session, cfg *config.Config) {
 }
 
 func HandleJoin(bot *discordgo.Session, guild *discordgo.GuildCreate) {
-	fmt.Println(guild.Name)
+	log.Printf("[HandleJoin] Connected to %s (%d members)", guild.Name, guild.MemberCount)
 }
 
 // sendDirectMessage sends a direct message to a user and returns the ID of the message sent
