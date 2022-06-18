@@ -1,4 +1,4 @@
-name: build
+name: test
 on:
   pull_request:
     paths-ignore:
@@ -9,17 +9,15 @@ on:
     paths-ignore:
       - '*.md'
 jobs:
-  build:
-    name: Build
+  test:
+    name: test
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Set up Go 1.18
-        uses: actions/setup-go@v3
+      - uses: actions/setup-go@v3
         with:
           go-version: 1.18
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Build binary to make sure it works
         run: go build -mod vendor
       - name: Test
