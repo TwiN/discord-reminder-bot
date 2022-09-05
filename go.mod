@@ -1,6 +1,6 @@
 module github.com/TwiN/discord-reminder-bot
 
-go 1.18
+go 1.19
 
 require (
 	github.com/bwmarrin/discordgo v0.23.2
